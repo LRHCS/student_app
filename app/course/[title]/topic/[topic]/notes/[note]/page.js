@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import MDEditor from '@uiw/react-md-editor';
+
 
 export default function NotePage({ params }) {
     const { lessonId } = params;
@@ -61,7 +63,7 @@ export default function NotePage({ params }) {
 
 
     return (
-        <div className="h-screen flex flex-col">
+        <div className="h-screen flex flex-col" data-color-mode="light">
             <div className="flex items-center p-4 border-b border-gray-300 bg-gray-100">
                 <div className="mb-6">
                     <Link href="../../../../../" className="hover:underline text-blue-500">
@@ -76,12 +78,14 @@ export default function NotePage({ params }) {
                     <span> / {lessonTitle}</span>
                 </div>
             </div>
-            <textarea
-                value={note}
-                onInput={handleNoteChange}
-                placeholder="Write your note here..."
-                className="flex-grow p-4 text-lg border-none outline-none resize-none"
-            ></textarea>
+
+
+                <MDEditor
+                    value={note}
+                    onInput={handleNoteChange}
+                    placeholder="Write your note here..."
+                    className="flex-grow p-4 text-lg border-none outline-none resize-none"
+                />
         </div>
     );
 }
