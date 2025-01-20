@@ -3,6 +3,7 @@
 import {use, useEffect, useState} from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import {AiOutlinePlus} from "react-icons/ai";
 
 export default function Page({params}) {
     const resolvedParams = use(params);
@@ -33,6 +34,8 @@ export default function Page({params}) {
     }, [topicTitle]);
 
     const addLesson = () => {
+        const newLessonTitle = prompt("Enter the new lesson title:");
+
         if (!newLessonTitle) return;
 
         const newLesson = {
@@ -115,21 +118,13 @@ export default function Page({params}) {
 
             <h1 className="text-4xl font-bold mb-6">{topicTitle}</h1>
 
-            <div className="mb-4 flex gap-2">
-                <input
-                    type="text"
-                    value={newLessonTitle}
-                    onChange={(e) => setNewLessonTitle(e.target.value)}
-                    placeholder="Enter new lesson title"
-                    className="p-2 border border-gray-300 rounded flex-1"
-                />
-                <button
-                    onClick={addLesson}
-                    className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                >
-                    Add Lesson
-                </button>
-            </div>
+
+            <button
+                onClick={addLesson}
+                className="fixed bottom-8 right-8 p-4 rounded-full shadow-lg hover:bg-gray-300 bg-gray-200"
+            >
+                <AiOutlinePlus className="text-2xl"/>
+            </button>
 
             <div>
                 <h2 className="text-2xl font-semibold mb-4">Lessons:</h2>

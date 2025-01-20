@@ -84,9 +84,9 @@ export default function Page({ params }) {
             </Link>
             <span> / {title}</span>
 
-            <h1 className="font-bold text-2xl mb-4">{title}</h1>
-
-            <ul className="flex flex-wrap gap-4">
+            <h1 className="text-4xl font-bold mb-6">{title}</h1>
+            <h2 className="text-2xl font-semibold mb-4">Topics:</h2>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {topics.map((topic) => (
                     <Card key={topic.id} className="p-4 flex items-center justify-between w-full">
                         <Link href={`${title}/topic/${topic.title}`} className="text-lg font-medium">
@@ -97,13 +97,13 @@ export default function Page({ params }) {
                                 onClick={() => editTopic(topic.id)}
                                 className="p-2 text-gray-950"
                             >
-                                <CiEdit />
+                                <CiEdit/>
                             </button>
                             <button
                                 onClick={() => deleteTopic(topic.id)}
                                 className="p-2  text-red-700 rounded"
                             >
-                                <RiDeleteBin5Line />
+                                <RiDeleteBin5Line/>
                             </button>
                         </div>
                     </Card>
@@ -114,7 +114,7 @@ export default function Page({ params }) {
                 onClick={addTopic}
                 className="fixed bottom-8 right-8 p-4 rounded-full shadow-lg hover:bg-gray-300 bg-gray-200"
             >
-                <AiOutlinePlus className="text-2xl" />
+                <AiOutlinePlus className="text-2xl"/>
             </button>
         </div>
     );

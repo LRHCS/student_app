@@ -9,6 +9,9 @@ export default function NotePage({ params }) {
     const pathname = usePathname();
     const router = useRouter();
     const [note, setNote] = useState("");
+    const courseTitle = pathname.split('/')[2];
+    const topicTitle = pathname.split('/')[4];
+    const lessonTitle = decodeURIComponent(pathname.split('/')[6]);
 
     useEffect(() => {
         // Load the note when the component mounts
@@ -32,9 +35,7 @@ export default function NotePage({ params }) {
 
         // Update the note in localStorage
         const appData = JSON.parse(localStorage.getItem('appData') || '{}');
-        const courseTitle = pathname.split('/')[2];
-        const topicTitle = pathname.split('/')[4];
-        const lessonTitle = decodeURIComponent(pathname.split('/')[6]);
+
 
         const updatedCourses = appData.courses.map(course => {
             if (course.title === courseTitle) {
@@ -58,20 +59,22 @@ export default function NotePage({ params }) {
         localStorage.setItem('appData', JSON.stringify({ ...appData, courses: updatedCourses }));
     };
 
-    const handleGoBack = () => {
-        router.back();
-    };
 
     return (
         <div className="h-screen flex flex-col">
             <div className="flex items-center p-4 border-b border-gray-300 bg-gray-100">
-                <button
-                    onClick={handleGoBack}
-                    className="text-blue-500 hover:underline mr-2"
-                >
-                    Go Back
-                </button>
-                <span className="text-gray-600">/ Notes</span>
+                <div className="mb-6">
+                    <Link href="../../../../../" className="hover:underline text-blue-500">
+                        Courses
+                    </Link>
+                    <Link href="../../../" className="hover:underline text-blue-500">
+                        / {courseTitle}
+                    </Link>
+                    <Link href="../" className="hover:underline text-blue-500">
+                        / {topicTitle}
+                    </Link>
+                    <span> / {lessonTitle}</span>
+                </div>
             </div>
             <textarea
                 value={note}

@@ -48,9 +48,9 @@ export default function Dashboard() {
 
     return (
         <div className="p-4 relative">
-            <h1 className="text-xl font-bold mb-4">Courses</h1>
+            <h1 className="text-4xl font-bold mb-6">Courses</h1>
 
-            <ul className="flex flex-wrap flex-row">
+            <ul className="flex-wrap flex-row grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {courses.map((course) => (
                     <Card key={course.id} className="mb-2 flex items-center">
                         <Link href={`/course/${course.title}`} className="mr-4">
