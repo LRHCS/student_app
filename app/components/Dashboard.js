@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/app/UI";
@@ -7,9 +6,10 @@ import { CiEdit } from "react-icons/ci";
 import { RiDeleteBin5Line } from "react-icons/ri";
 import { AiOutlinePlus } from "react-icons/ai";
 import Calendar from "@/app/components/calendar";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/app/utils/client";
 import Image from "next/image";
+import { loadDashboardData } from "@/app/utils/loadDashboardData"; // Import the data loader
 
 export default function Dashboard() {
     const [courses, setCourses] = useState([]);
@@ -17,48 +17,20 @@ export default function Dashboard() {
     const [exams, setExams] = useState([]);
     const [user, setUser] = useState({});
     const [isAddingCourse, setIsAddingCourse] = useState(false);
-    const [newCourse, setNewCourse] = useState({ title: '' });
+    const [newCourse, setNewCourse] = useState({ title: "" });
 
     useEffect(() => {
-        const loadData = async () => {
-            // Fetch User Info & User ID
-            const {
-                data: { user },
-                error: userError
-            } = await supabase.auth.getUser();
-
-            if (userError || !user) {
-                console.error("Error fetching user:", userError);
-                return;
+        const fetchData = async () => {
+            const data = await loadDashboardData();
+            if (data) {
+                setCourses(data.courses);
+                setTopics(data.topics);
+                setExams(data.exams);
+                setUser(data.user);
             }
-
-            const userID = user.id;
-
-            // Fetch Courses, Topics, Exams & Profile in one batch
-            const [{ data: coursesData, error: coursesError },
-                { data: topicsData, error: topicsError },
-                { data: examsData, error: examsError },
-                { data: profileData, error: profileError }] = await Promise.all([
-                supabase.from("Courses").select("id, title").eq("user_id", userID),
-                supabase.from("Topics").select("id, title, course_id"),
-                supabase.from("Exams").select("id, title, date, topicId"),
-                supabase.from("Profiles").select("firstname, lastname, avatar").eq("id", userID).single()
-            ]);
-
-            // Error handling
-            if (coursesError) console.error("Error fetching courses:", coursesError);
-            if (topicsError) console.error("Error fetching topics:", topicsError);
-            if (examsError) console.error("Error fetching exams:", examsError);
-            if (profileError) console.error("Error fetching profile:", profileError);
-
-            // Set state with fetched data
-            setCourses(coursesData || []);
-            setTopics(topicsData || []);
-            setExams(examsData || []);
-            setUser(profileData || {});
         };
 
-        loadData();
+        fetchData();
     }, []);
 
     const handleSubmitCourse = async (e) => {
@@ -73,7 +45,7 @@ export default function Dashboard() {
         } else {
             setCourses([...courses, data[0]]);
             setIsAddingCourse(false);
-            setNewCourse({ title: '' });
+            setNewCourse({ title: "" });
         }
     };
 
@@ -93,7 +65,12 @@ export default function Dashboard() {
                     </Link>
                     <Link href="/user" className="w-12 h-12 absolute top-4 right-4">
                         {user.avatar ? (
-                            <Image src={user.avatar} alt="User Avatar" fill={true} className="w-12 h-12 rounded-full object-cover" />
+                            <Image
+                                src={user.avatar}
+                                alt="User Avatar"
+                                fill={true}
+                                className="w-12 h-12 rounded-full object-cover"
+                            />
                         ) : (
                             <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                                 {user.firstname && user.lastname}
@@ -140,8 +117,12 @@ export default function Dashboard() {
                             />
                         </label>
                         <div className="flex justify-between mt-4">
-                            <button type="submit" className="px-4 py-2 border rounded">Add Course</button>
-                            <button type="button" onClick={() => setIsAddingCourse(false)} className="px-4 py-2 border rounded">Cancel</button>
+                            <button type="submit" className="px-4 py-2 border rounded">
+                                Add Course
+                            </button>
+                            <button type="button" onClick={() => setIsAddingCourse(false)} className="px-4 py-2 border rounded">
+                                Cancel
+                            </button>
                         </div>
                     </form>
                 </div>

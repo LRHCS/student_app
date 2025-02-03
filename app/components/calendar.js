@@ -7,6 +7,7 @@ import Link from "next/link";
 import { PiExam } from "react-icons/pi";
 import { MdOutlineAssignment } from "react-icons/md";
 import { redirect } from "next/navigation";
+import { loadCalendarData } from "../utils/loadCalendarData";
 
 const Calendar = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -23,36 +24,16 @@ const Calendar = () => {
     const [newExam, setNewExam] = useState({ title: "", date: "", topicId: "" });
     const [newAssignment, setNewAssignment] = useState({ title: "", date: "", topicId: "" });
 
-    // Instead of calling each fetch function separately, use one effect that does all requests concurrently
+    // Data loading using the extracted utility function
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                const [examsResponse, assignmentsResponse, coursesResponse, topicsResponse] =
-                    await Promise.all([
-                        supabase.from("Exams").select("id, date, title, topicId"),
-                        supabase.from("Assignments").select("id, date, title, topicId"),
-                        supabase.from("Courses").select("*"),
-                        // Modify fetchTopics: if a courseId is provided, you could filter;
-                        // otherwise, fetch all topics.
-                        supabase.from("Topics").select("id, title, course_id"),
-                    ]);
-
-                if (!examsResponse.error) setExams(examsResponse.data);
-                else console.error("Error fetching exams:", examsResponse.error);
-
-                if (!assignmentsResponse.error) setAssignments(assignmentsResponse.data);
-                else console.error("Error fetching assignments:", assignmentsResponse.error);
-
-                if (!coursesResponse.error) setCourses(coursesResponse.data);
-                else console.error("Error fetching courses:", coursesResponse.error);
-
-                if (!topicsResponse.error) setTopics(topicsResponse.data);
-                else console.error("Error fetching topics:", topicsResponse.error);
-            } catch (error) {
-                console.error("Error loading data:", error);
-            }
+        const fetchData = async () => {
+            const data = await loadCalendarData();
+            setExams(data.exams);
+            setAssignments(data.assignments);
+            setCourses(data.courses);
+            setTopics(data.topics);
         };
-        loadData();
+        fetchData();
     }, []);
 
     // ----------------------------
@@ -160,7 +141,7 @@ const Calendar = () => {
                     const date = new Date(
                         currentDate.getFullYear(),
                         currentDate.getMonth(),
-                        day +2
+                        day + 2
                     )
                         .toISOString()
                         .split("T")[0];
@@ -170,7 +151,11 @@ const Calendar = () => {
                     return (
                         <div
                             key={day}
-                            className={`border p-2 relative group h-fit min-h-24 rounded-lg border-gray-300 ${date === new Date().toISOString().split("T")[0] ? "bg-gray-400 p-1 rounded" : ""}`}
+                            className={`border p-2 relative group h-fit min-h-24 rounded-lg border-gray-300 ${
+                                date === new Date().toISOString().split("T")[0]
+                                    ? "bg-gray-400 p-1 rounded"
+                                    : ""
+                            }`}
                         >
                             <div
                                 className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity"

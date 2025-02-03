@@ -10,6 +10,7 @@ const KanbanCard = ({ task }) => {
         }),
     });
 
+
     const noteUrl =
         task.type === "lesson" && task.course_name && task.topic_name
             ? `/course/${encodeURIComponent(task.course_name)}/topic/${encodeURIComponent(
