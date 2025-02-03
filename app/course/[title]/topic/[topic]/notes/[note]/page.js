@@ -4,88 +4,113 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import MDEditor from '@uiw/react-md-editor';
-
+import { supabase } from "@/app/utils/client";
 
 export default function NotePage({ params }) {
-    const { lessonId } = params;
     const pathname = usePathname();
     const router = useRouter();
     const [note, setNote] = useState("");
-    const courseTitle = pathname.split('/')[2];
-    const topicTitle = pathname.split('/')[4];
+    const [title, setTitle] = useState("");
+
+    const courseTitle = decodeURIComponent(pathname.split('/')[2]);
+    const topicTitle = decodeURIComponent(pathname.split('/')[4]);
     const lessonTitle = decodeURIComponent(pathname.split('/')[6]);
+    const lessonId  = decodeURIComponent(pathname.split('/')[6]);
+
 
     useEffect(() => {
-        // Load the note when the component mounts
-        const appData = JSON.parse(localStorage.getItem('appData') || '{}');
-        const courseTitle = pathname.split('/')[2];
-        const topicTitle = pathname.split('/')[4];
-        const lessonTitle = decodeURIComponent(pathname.split('/')[6]);
+        fetchLesson();
+        const fetchTitle = async () => {
+            const fetchedTitle = await noteTitle();
+            setTitle(fetchedTitle);
+        };
 
-        const course = appData.courses.find(c => c.title === courseTitle);
-        const topic = course?.topics.find(t => t.title === topicTitle);
-        const lesson = topic?.lessons.find(l => l.title === lessonTitle);
+        fetchTitle();
+    }, [lessonId]);
 
-        if (lesson) {
-            setNote(lesson.note || '');
+    const fetchLesson = async () => {
+        console.log('Params:', params);
+        console.log('Lesson ID:', lessonId);
+        if (!lessonId) {
+            console.error('Lesson ID is undefined');
+            return;
         }
-    }, [pathname]);
 
-    const handleNoteChange = (e) => {
-        const newNote = e.target.value;
-        setNote(newNote);
+        const { data, error } = await supabase
+            .from('Lessons')
+            .select('*')
+            .eq('id', lessonId)
+            .single();
 
-        // Update the note in localStorage
-        const appData = JSON.parse(localStorage.getItem('appData') || '{}');
-
-
-        const updatedCourses = appData.courses.map(course => {
-            if (course.title === courseTitle) {
-                const updatedTopics = course.topics.map(topic => {
-                    if (topic.title === topicTitle) {
-                        const updatedLessons = topic.lessons.map(lesson => {
-                            if (lesson.title === lessonTitle) {
-                                return { ...lesson, note: newNote };
-                            }
-                            return lesson;
-                        });
-                        return { ...topic, lessons: updatedLessons };
-                    }
-                    return topic;
-                });
-                return { ...course, topics: updatedTopics };
-            }
-            return course;
-        });
-
-        localStorage.setItem('appData', JSON.stringify({ ...appData, courses: updatedCourses }));
+        if (error) {
+            console.error('Error fetching lesson:', error.message);
+        } else if (data) {
+            setNote(data.content || '');
+        }
     };
+
+    const handleNoteChange = async (value) => {
+        setNote(value);
+
+        if (!lessonId) {
+            console.error('Lesson ID is undefined');
+            return;
+        }
+
+        const { error } = await supabase
+            .from('Lessons')
+            .update({ content: value })
+            .eq('id', lessonId);
+
+        if (error) {
+            console.error('Error updating lesson content:', error.message);
+        }
+    };
+
+    const noteTitle = async () => {
+        const { data, error } = await supabase
+            .from('Lessons')
+            .select('title') // Only fetch the title column
+            .eq('id', lessonId)
+            .single();
+
+        if (error) {
+            console.error('Error fetching note title:', error.message);
+            return null;
+        }
+
+        return data?.title || 'Untitled'; // Return the title or fallback
+    };
+
 
 
     return (
         <div className="h-screen flex flex-col" data-color-mode="light">
             <div className="flex items-center p-4 border-b border-gray-300 bg-gray-100">
                 <div className="mb-6">
-                    <Link href="../../../../../" className="hover:underline text-blue-500">
-                        Courses
+                    <Link href="../../../../../" className="hover:underline">
+                        Dashboard
                     </Link>
-                    <Link href="../../../" className="hover:underline text-blue-500">
-                        / {courseTitle}
+                    <span> / </span>
+                    <Link href="../../../" className="hover:underline ">
+                        {courseTitle}
                     </Link>
-                    <Link href="../" className="hover:underline text-blue-500">
-                        / {topicTitle}
+                    <span> / </span>
+
+                    <Link href=".." className="hover:underline">
+                        {topicTitle}
                     </Link>
-                    <span> / {lessonTitle}</span>
+                    <span> / </span>
+
+                    <span className="font-bold">{title}</span>
                 </div>
             </div>
-
-
-                <MDEditor
-                    value={note}
-                    onInput={handleNoteChange}
-                    placeholder="Write your note here..."
-                    className="flex-grow p-4 text-lg border-none outline-none resize-none"
-                />
+            <MDEditor
+                value={note}
+                onChange={handleNoteChange}
+                placeholder="Write your note here..."
+                className="flex-grow p-4 text-lg border-none outline-none resize-none"
+            />
         </div>
     );
 }
