@@ -16,9 +16,11 @@ export default function Page({ params }) {
     const [exams, setExams] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState("add"); // 'add', 'edit', or 'delete'
+    const [modalMode, setModalMode] = useState("add"); // 'add', 'edit', 'delete', 'addExam', 'addAssignment'
     const [currentTopic, setCurrentTopic] = useState(null);
     const [newTopicTitle, setNewTopicTitle] = useState("");
+    const [newExamData, setNewExamData] = useState({ title: '', date: '', topicId: '' });
+    const [newAssignmentData, setNewAssignmentData] = useState({ title: '', date: '', topicId: '' });
 
     useEffect(() => {
         const fetchTopics = async () => {
@@ -106,6 +108,10 @@ export default function Page({ params }) {
             await editTopic();
         } else if (modalMode === "delete") {
             await deleteTopic();
+        } else if (modalMode === "addExam") {
+            await addExam();
+        } else if (modalMode === "addAssignment") {
+            await addAssignment();
         }
         closeModal();
     };
@@ -162,6 +168,82 @@ export default function Page({ params }) {
         }
     };
 
+    const addExam = async () => {
+        if (newExamData.title && newExamData.date && newExamData.topicId) {
+            const { data, error } = await supabase
+                .from("Exams")
+                .insert([{
+                    title: newExamData.title,
+                    date: newExamData.date,
+                    topicId: newExamData.topicId
+                }])
+                .select();
+
+            if (error) {
+                console.error("Error adding exam:", error);
+                return;
+            }
+
+            setExams([...exams, data[0]]);
+            setNewExamData({ title: '', date: '', topicId: '' });
+        }
+    };
+
+    const addAssignment = async () => {
+        if (newAssignmentData.title && newAssignmentData.date && newAssignmentData.topicId) {
+            const { data, error } = await supabase
+                .from("Assignments")
+                .insert([{
+                    title: newAssignmentData.title,
+                    date: newAssignmentData.date,
+                    topicId: newAssignmentData.topicId,
+                    status: 0
+                }])
+                .select();
+
+            if (error) {
+                console.error("Error adding assignment:", error);
+                return;
+            }
+
+            setAssignments([...assignments, data[0]]);
+            setNewAssignmentData({ title: '', date: '', topicId: '' });
+        }
+    };
+
+    // Add this helper function at the top of your component to convert status codes to text
+    const getStatusText = (status) => {
+        switch (status) {
+            case 0:
+                return { text: 'Not Started', color: 'bg-gray-200' };
+            case 1:
+                return { text: 'In Progress', color: 'bg-yellow-200' };
+            case 2:
+                return { text: 'Completed', color: 'bg-green-200' };
+            default:
+                return { text: 'Unknown', color: 'bg-gray-200' };
+        }
+    };
+
+    // Add this function to handle status updates
+    const updateAssignmentStatus = async (assignmentId, newStatus) => {
+        const { error } = await supabase
+            .from("Assignments")
+            .update({ status: newStatus })
+            .eq("id", assignmentId);
+
+        if (error) {
+            console.error("Error updating assignment status:", error);
+            return;
+        }
+
+        setAssignments(assignments.map(assignment => 
+            assignment.id === assignmentId 
+                ? { ...assignment, status: newStatus }
+                : assignment
+        ));
+    };
+
     return (
         <div className="p-4 relative">
             <Link href="../" className="hover:underline mb-4 inline-block">
@@ -204,7 +286,15 @@ export default function Page({ params }) {
             <div className="flex w-full gap-4">
                 {/* Exams List */}
                 <div className="w-1/2">
-                    <h2 className="text-2xl font-bold mb-2 ">Exams</h2>
+                    <div className="flex items-center mb-2">
+                        <h2 className="text-2xl font-bold">Exams</h2>
+                        <button
+                            onClick={() => openModal("addExam")}
+                            className="ml-2 text-xl text-gray-500 bold hover:text-gray-700"
+                        >
+                            <AiOutlinePlus className="text-2xl" />
+                        </button>
+                    </div>
                     {exams.length > 0 ? (
                         <ul className="mb-8">
                             {exams.map((exam) => (
@@ -222,14 +312,34 @@ export default function Page({ params }) {
 
                 <div className="w-1/2">
                     {/* Assignments List */}
-                    <h2 className="text-2xl font-bold mb-2">Assignments</h2>
+                    <div className="flex items-center mb-2">
+                        <h2 className="text-2xl font-bold">Assignments</h2>
+                        <button
+                            onClick={() => openModal("addAssignment")}
+                            className="ml-2 text-xl text-gray-500 bold hover:text-gray-700"
+                        >
+                            <AiOutlinePlus className="text-2xl" />
+                        </button>
+                    </div>
                     {assignments.length > 0 ? (
                         <ul className="mb-8">
                             {assignments.map((assignment) => (
                                 <li key={assignment.id} className="p-2 border rounded mb-2 border-gray-300">
-                                    <Link href={`${title}/assignment/${assignment.id}`} className="hover:underline">
-                                        {assignment.title} – {assignment.date}
-                                    </Link>
+                                    <div className="flex items-center justify-between">
+                                            {assignment.title} – {assignment.date}
+                                        <div className="flex items-center gap-2">
+                                            <select
+                                                value={assignment.status || 0}
+                                                onChange={(e) => updateAssignmentStatus(assignment.id, Number(e.target.value))}
+                                                className={`p-1 rounded text-sm ${getStatusText(assignment.status).color}`}
+                                            >
+                                                <option className="bg-gray-200" value={0}>Not Started</option>
+                                                <option className="bg-yellow-200" value={1}>In Progress</option>
+                                                <option className="bg-green-200" value={2}>Completed</option>
+                                            </select>
+
+                                        </div>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -240,8 +350,7 @@ export default function Page({ params }) {
 
             </div>
 
-
-            {/* Modal for Topic CRUD */}
+            {/* Modal for Topic/Exam/Assignment CRUD */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
                     <div className="bg-white p-6 rounded-lg">
@@ -250,10 +359,74 @@ export default function Page({ params }) {
                                 ? "Add New Topic"
                                 : modalMode === "edit"
                                     ? "Edit Topic"
-                                    : "Delete Topic"}
+                                    : modalMode === "delete"
+                                        ? "Delete Topic"
+                                        : modalMode === "addExam"
+                                            ? "Add New Exam"
+                                            : "Add New Assignment"}
                         </h2>
                         <form onSubmit={handleSubmit}>
-                            {modalMode !== "delete" && (
+                            {modalMode === "addExam" && (
+                                <>
+                                    <input
+                                        type="text"
+                                        value={newExamData.title}
+                                        onChange={(e) => setNewExamData({...newExamData, title: e.target.value})}
+                                        className="w-full p-2 border rounded mb-4"
+                                        placeholder="Exam title"
+                                        required
+                                    />
+                                    <input
+                                        type="date"
+                                        value={newExamData.date}
+                                        onChange={(e) => setNewExamData({...newExamData, date: e.target.value})}
+                                        className="w-full p-2 border rounded mb-4"
+                                        required
+                                    />
+                                    <select
+                                        value={newExamData.topicId}
+                                        onChange={(e) => setNewExamData({...newExamData, topicId: e.target.value})}
+                                        className="w-full p-2 border rounded mb-4"
+                                        required
+                                    >
+                                        <option value="">Select a topic</option>
+                                        {topics.map(topic => (
+                                            <option key={topic.id} value={topic.id}>{topic.title}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
+                            {modalMode === "addAssignment" && (
+                                <>
+                                    <input
+                                        type="text"
+                                        value={newAssignmentData.title}
+                                        onChange={(e) => setNewAssignmentData({...newAssignmentData, title: e.target.value})}
+                                        className="w-full p-2 border rounded mb-4"
+                                        placeholder="Assignment title"
+                                        required
+                                    />
+                                    <input
+                                        type="date"
+                                        value={newAssignmentData.date}
+                                        onChange={(e) => setNewAssignmentData({...newAssignmentData, date: e.target.value})}
+                                        className="w-full p-2 border rounded mb-4"
+                                        required
+                                    />
+                                    <select
+                                        value={newAssignmentData.topicId}
+                                        onChange={(e) => setNewAssignmentData({...newAssignmentData, topicId: e.target.value})}
+                                        className="w-full p-2 border rounded mb-4"
+                                        required
+                                    >
+                                        <option value="">Select a topic</option>
+                                        {topics.map(topic => (
+                                            <option key={topic.id} value={topic.id}>{topic.title}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
+                            {(modalMode !== "delete" && modalMode !== "addExam" && modalMode !== "addAssignment") && (
                                 <input
                                     type="text"
                                     value={newTopicTitle}
@@ -264,9 +437,7 @@ export default function Page({ params }) {
                                 />
                             )}
                             {modalMode === "delete" && (
-                                <p>
-                                    Are you sure you want to delete this page?
-                                </p>
+                                <p>Are you sure you want to delete this topic?</p>
                             )}
                             <div className="flex justify-end gap-2">
                                 <button
@@ -282,7 +453,10 @@ export default function Page({ params }) {
                                         modalMode === "delete" ? "bg-red-500" : "bg-blue-500"
                                     }`}
                                 >
-                                    {modalMode === "add" ? "Add" : modalMode === "edit" ? "Save" : "Delete"}
+                                    {modalMode === "add" ? "Add" : 
+                                     modalMode === "edit" ? "Save" : 
+                                     modalMode === "delete" ? "Delete" :
+                                     "Add"}
                                 </button>
                             </div>
                         </form>

@@ -9,6 +9,19 @@ import { MdOutlineAssignment } from "react-icons/md";
 import { redirect } from "next/navigation";
 import { loadCalendarData } from "../utils/loadCalendarData";
 
+const getStatusText = (status) => {
+    switch (status) {
+        case 0:
+            return { text: 'Not Started', color: 'bg-gray-200' };
+        case 1:
+            return { text: 'In Progress', color: 'bg-yellow-200' };
+        case 2:
+            return { text: 'Completed', color: 'bg-green-200' };
+        default:
+            return { text: 'Unknown', color: 'bg-gray-200' };
+    }
+};
+
 const Calendar = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [exams, setExams] = useState([]);
@@ -95,11 +108,34 @@ const Calendar = () => {
 
     const handleSubmitAssignment = async (e) => {
         e.preventDefault();
-        const { error } = await supabase.from("Assignments").insert([newAssignment]);
+        const { error } = await supabase
+            .from("Assignments")
+            .insert([{
+                ...newAssignment,
+                status: 0 // Set initial status to "Not Started"
+            }]);
         if (!error) {
-            setAssignments([...assignments, { ...newAssignment, id: Date.now() }]);
+            setAssignments([...assignments, { ...newAssignment, id: Date.now(), status: 0 }]);
             resetModals();
         }
+    };
+
+    const updateAssignmentStatus = async (assignmentId, newStatus) => {
+        const { error } = await supabase
+            .from("Assignments")
+            .update({ status: newStatus })
+            .eq("id", assignmentId);
+
+        if (error) {
+            console.error("Error updating assignment status:", error);
+            return;
+        }
+
+        setAssignments(assignments.map(assignment => 
+            assignment.id === assignmentId 
+                ? { ...assignment, status: newStatus }
+                : assignment
+        ));
     };
 
     const resetModals = () => {
@@ -186,10 +222,22 @@ const Calendar = () => {
                             {dayAssignments.map((item) => (
                                 <div
                                     key={`assignment-${item.id}`}
-                                    className="flex items-center gap-2 mt-1 p-1 text-sm cursor-pointer border border-gray-300 rounded-lg hover:bg-gray-400"
+                                    className={`flex items-center justify-between mt-1 p-1 text-sm border rounded-lg`}
                                 >
-                                    <MdOutlineAssignment className="text-xl" />
-                                    {item.title}
+                                    <div className="flex items-center gap-2">
+                                        <MdOutlineAssignment className="text-xl" />
+                                        {item.title}
+                                    </div>
+                                    <select
+                                        value={item.status || 0}
+                                        onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
+                                        className={`text-xs p-1 rounded border-none focus:ring-0 cursor-pointer ${getStatusText(item.status).color}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <option className="bg-gray-200" value={0}>Not Started</option>
+                                        <option className="bg-yellow-200" value={1}>In Progress</option>
+                                        <option className="bg-green-200" value={2}>Completed</option>
+                                    </select>
                                 </div>
                             ))}
                         </div>
