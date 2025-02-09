@@ -21,9 +21,11 @@ import {
     MdInfo,
     MdHorizontalRule,
     MdVideoLibrary,
-    MdTextFields
+    MdTextFields,
+    MdEdit
 } from 'react-icons/md';
 import BlockRenderer from './BlockRenderer';
+import DrawingLayer from '@/app/components/DrawingLayer';
 
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
@@ -135,6 +137,7 @@ export default function NotePage({ params }) {
     const [showBlockMenu, setShowBlockMenu] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
     const [title, setTitle] = useState("");
+    const [isDrawingMode, setIsDrawingMode] = useState(false);
 
     const courseTitle = decodeURIComponent(pathname.split('/')[2]);
     const topicTitle = decodeURIComponent(pathname.split('/')[4]);
@@ -380,7 +383,7 @@ export default function NotePage({ params }) {
     return (
         <div className="min-h-screen flex flex-col bg-white">
             <div className="sticky top-0 z-50 bg-gray-100 shadow-sm">
-                <div className="flex items-center p-4 border-b border-gray-300">
+                <div className="flex items-center justify-between p-4 border-b border-gray-300">
                     <div>
                         <Link href="../../../../../" className="hover:underline">
                             Dashboard
@@ -396,83 +399,96 @@ export default function NotePage({ params }) {
                         <span className="mx-2 text-gray-500">/</span>
                         <span className="font-bold">{title}</span>
                     </div>
+                    <button
+                        onClick={() => setIsDrawingMode(!isDrawingMode)}
+                        className={`p-2 rounded-full ${isDrawingMode ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                        title="Toggle drawing mode"
+                    >
+                        <MdEdit className="text-xl" />
+                    </button>
                 </div>
             </div>
 
-            <DragDropContextWrapper onDragEnd={handleDragEnd}>
-                <DroppableWrapper 
-                    droppableId="blocks"
-                    type="DEFAULT"
-                    direction="vertical"
-                >
-                    {(provided, snapshot) => (
-                        <div
-                            {...provided.droppableProps}
-                            ref={provided.innerRef}
-                            className={`flex-grow p-4 max-w-4xl mx-auto w-full ${
-                                snapshot.isDraggingOver ? 'bg-gray-50' : ''
-                            }`}
+            <div className="relative flex-grow">
+                {isDrawingMode && <DrawingLayer isActive={isDrawingMode} lessonId={lessonId} />}
+
+                <div className="relative z-30">
+                    <DragDropContextWrapper onDragEnd={handleDragEnd}>
+                        <DroppableWrapper 
+                            droppableId="blocks"
+                            type="DEFAULT"
+                            direction="vertical"
                         >
-                            <div className="min-h-[75vh] relative">
-                                {blocks.map((block, index) => {
-                                    const blockId = String(block.id);
-                                    const isLastBlock = index === blocks.length - 1;
-                                    return (
-                                        <DraggableWrapper
-                                            key={blockId}
-                                            draggableId={blockId}
-                                            index={index}
-                                        >
-                                            {(provided, snapshot) => (
-                                                <>
-                                                    <div
-                                                        {...provided.dragHandleProps}
-                                                        className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-move p-2"
-                                                    >
-                                                        <MdDragIndicator />
-                                                    </div>
-                                                    <BlockRenderer
-                                                        block={block}
-                                                        onChange={(content, properties) => 
-                                                            handleBlockChange(blockId, content, properties)
-                                                        }
-                                                        onRemove={() => removeBlock(index)}
-                                                        onEnterPress={handleEnterPress}
-                                                        onBackspacePress={handleBackspacePress}
-                                                        onSlashCommand={handleSlashCommand}
-                                                        onTransformBlock={transformBlock}
-                                                        index={index}
-                                                        isLastBlock={isLastBlock}
-                                                        onFocusNext={focusNextBlock}
-                                                        onFocusPrevious={focusPreviousBlock}
-                                                    />
-                                                    {isLastBlock && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                const rect = e.target.getBoundingClientRect();
-                                                                setMenuPosition({
-                                                                    x: rect.left,
-                                                                    y: rect.bottom + window.scrollY
-                                                                });
-                                                                setShowBlockMenu(index);
-                                                            }}
-                                                            className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-full p-1"
-                                                        >
-                                                            <FaPlus />
-                                                        </button>
+                            {(provided, snapshot) => (
+                                <div
+                                    {...provided.droppableProps}
+                                    ref={provided.innerRef}
+                                    className={`flex-grow p-4 max-w-4xl mx-auto w-full ${
+                                        snapshot.isDraggingOver ? 'bg-gray-50' : ''
+                                    }`}
+                                >
+                                    <div className="min-h-[75vh] relative">
+                                        {blocks.map((block, index) => {
+                                            const blockId = String(block.id);
+                                            const isLastBlock = index === blocks.length - 1;
+                                            return (
+                                                <DraggableWrapper
+                                                    key={blockId}
+                                                    draggableId={blockId}
+                                                    index={index}
+                                                >
+                                                    {(provided, snapshot) => (
+                                                        <>
+                                                            <div
+                                                                {...provided.dragHandleProps}
+                                                                className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-move p-2"
+                                                            >
+                                                                <MdDragIndicator />
+                                                            </div>
+                                                            <BlockRenderer
+                                                                block={block}
+                                                                onChange={(content, properties) => 
+                                                                    handleBlockChange(blockId, content, properties)
+                                                                }
+                                                                onRemove={() => removeBlock(index)}
+                                                                onEnterPress={handleEnterPress}
+                                                                onBackspacePress={handleBackspacePress}
+                                                                onSlashCommand={handleSlashCommand}
+                                                                onTransformBlock={transformBlock}
+                                                                index={index}
+                                                                isLastBlock={isLastBlock}
+                                                                onFocusNext={focusNextBlock}
+                                                                onFocusPrevious={focusPreviousBlock}
+                                                            />
+                                                            {isLastBlock && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        const rect = e.target.getBoundingClientRect();
+                                                                        setMenuPosition({
+                                                                            x: rect.left,
+                                                                            y: rect.bottom + window.scrollY
+                                                                        });
+                                                                        setShowBlockMenu(index);
+                                                                    }}
+                                                                    className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-full p-1"
+                                                                >
+                                                                    <FaPlus />
+                                                                </button>
+                                                            )}
+                                                        </>
                                                     )}
-                                                </>
-                                            )}
-                                        </DraggableWrapper>
-                                    );
-                                })}
-                                {provided.placeholder}
-                            </div>
-                            <div className="h-[25vh]" />
-                        </div>
-                    )}
-                </DroppableWrapper>
-            </DragDropContextWrapper>
+                                                </DraggableWrapper>
+                                            );
+                                        })}
+                                        {provided.placeholder}
+                                    </div>
+                                    <div className="h-[25vh]" />
+                                </div>
+                            )}
+                        </DroppableWrapper>
+                    </DragDropContextWrapper>
+                </div>
+            </div>
 
             {showBlockMenu !== false && (
                 <div

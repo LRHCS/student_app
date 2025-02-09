@@ -207,7 +207,7 @@ const BlockRenderer = ({
             style: { minHeight: '1.5rem' }
         };
 
-        switch (block.type) {
+        switch (block.type) {   
             case 'text':
                 return <textarea {...commonProps} />;
             case 'heading':
