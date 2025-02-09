@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/app/utils/client";
 import Image from "next/image";
 import { loadDashboardData } from "@/app/utils/loadDashboardData"; // Import the data loader
+import { RiFocus2Line } from "react-icons/ri";
+
 
 export default function Dashboard() {
     const [courses, setCourses] = useState([]);
@@ -60,10 +62,11 @@ export default function Dashboard() {
                 </div>
 
                 <div>
-                    <Link href="/lsession" className="underline text-red-700 bold absolute top-4 right-24">
-                        Learning Session
+                    <Link href="/lsession" className="underline bold absolute top-4 right-24 text-3xl">
+                        <RiFocus2Line />
                     </Link>
                     <Link href="/user" className="w-12 h-12 absolute top-4 right-4">
+
                         {user.avatar ? (
                             <Image
                                 src={user.avatar}

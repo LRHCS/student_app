@@ -22,6 +22,65 @@ const getStatusText = (status) => {
     }
 };
 
+const hasContent = (date, exams, assignments) => {
+    return exams.some(item => item.date.startsWith(date)) || 
+           assignments.some(item => item.date.startsWith(date));
+};
+
+const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentStatus }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h2 className="text-lg font-semibold">
+                    {new Date(date).toLocaleDateString('default', { 
+                        month: 'long', 
+                        day: 'numeric',
+                        year: 'numeric'
+                    })}
+                </h2>
+                <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                    ×
+                </button>
+            </div>
+            <div className="p-4 space-y-3">
+                {exams.map((item) => (
+                    <div
+                        key={`exam-${item.id}`}
+                        className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-100"
+                        onClick={() => window.location.href = `/exam/${item.id}`}
+                    >
+                        <PiExam className="text-xl" />
+                        <span>{item.title}</span>
+                    </div>
+                ))}
+                {assignments.map((item) => (
+                    <div
+                        key={`assignment-${item.id}`}
+                        className="flex items-center justify-between p-2 border rounded-lg"
+                    >
+                        <div className="flex items-center gap-2">
+                            <MdOutlineAssignment className="text-xl" />
+                            <span>{item.title}</span>
+                        </div>
+                        <select
+                            value={item.status || 0}
+                            onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
+                            className={`text-xs p-1 rounded ${getStatusText(item.status).color}`}
+                        >
+                            <option className="bg-gray-200" value={0}>Not Started</option>
+                            <option className="bg-yellow-200" value={1}>In Progress</option>
+                            <option className="bg-green-200" value={2}>Completed</option>
+                        </select>
+                    </div>
+                ))}
+                {!exams.length && !assignments.length && (
+                    <p className="text-gray-500 text-center">No events for this day</p>
+                )}
+            </div>
+        </div>
+    </div>
+);
+
 const Calendar = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [exams, setExams] = useState([]);
@@ -30,6 +89,7 @@ const Calendar = () => {
     const [topics, setTopics] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState("");
     const [selectedExam, setSelectedExam] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(null);
 
     // For handling add modal for exam/assignment
     const [isChoosingModal, setIsChoosingModal] = useState(false);
@@ -90,8 +150,9 @@ const Calendar = () => {
     // Detailed Exam View: Using redirect
     // ----------------------------
     // Instead of opening a modal, we simply redirect to a separate page.
-    const handleExamClick = (exam) => {
-        redirect(`/exam/${exam.id}`);
+    const handleExamClick = (e, examId) => {
+        e.stopPropagation(); // Prevent triggering the day click
+        window.location.href = `/exam/${examId}`;
     };
 
     // ----------------------------
@@ -145,6 +206,13 @@ const Calendar = () => {
         setNewAssignment({ title: "", date: "", topicId: "" });
     };
 
+    // Add this function to handle click events
+    const handleDayClick = (date, dayExams, isMobile) => {
+        if (isMobile) {
+            setSelectedDate(date);
+        }
+    };
+
     return (
         <div className="mx-auto p-4 rounded-lg">
             {/* Navigation header */}
@@ -160,90 +228,112 @@ const Calendar = () => {
                 </button>
             </div>
 
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-2 border border-gray-400 h-fit rounded-lg p-4">
+            {/* Calendar grid with responsive design */}
+            <div className="grid grid-cols-7 gap-2 border border-gray-400 rounded-lg p-4">
                 {weekDays.map((day) => (
                     <div key={day} className="font-bold text-center p-2 h-8">
-                        {day}
+                        <span className="hidden sm:inline">{day}</span>
+                        <span className="sm:hidden">{day[0]}</span>
                     </div>
                 ))}
-                {Array(adjustedFirstDay)
-                    .fill(null)
-                    .map((_, i) => (
-                        <div key={`empty-${i}`} className="p-4"></div>
-                    ))}
+                {Array(adjustedFirstDay).fill(null).map((_, i) => (
+                    <div key={`empty-${i}`} className="p-4"></div>
+                ))}
                 {[...Array(daysInMonth)].map((_, day) => {
-                    // Create the date string for each cell
                     const date = new Date(
                         currentDate.getFullYear(),
                         currentDate.getMonth(),
                         day + 2
-                    )
-                        .toISOString()
-                        .split("T")[0];
-                    // Filter exams and assignments for this date
+                    ).toISOString().split('T')[0];
+                    
                     const dayExams = exams.filter((item) => item.date.startsWith(date));
                     const dayAssignments = assignments.filter((item) => item.date.startsWith(date));
+                    const hasEvents = hasContent(date, exams, assignments);
+
                     return (
                         <div
                             key={day}
-                            className={`border p-2 relative group h-fit min-h-24 rounded-lg border-gray-300 ${
-                                date === new Date().toISOString().split("T")[0]
-                                    ? "bg-gray-400 p-1 rounded"
-                                    : ""
-                            }`}
+                            onClick={() => {
+                                const isMobile = window.innerWidth < 640;
+                                handleDayClick(date, dayExams, isMobile);
+                            }}
+                            className={`border p-2 relative group cursor-pointer
+                                ${date === new Date().toISOString().split('T')[0] ? "bg-gray-400 rounded" : ""}
+                                sm:min-h-24 min-h-12 rounded-lg border-gray-300`}
                         >
-                            <div
-                                className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleAddClick(date)}
+                            {/* Add button */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddClick(date);
+                                }}
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-full p-1"
                             >
-                                <IoMdAdd className="text-xl" />
-                            </div>
+                                <IoMdAdd className="text-gray-600" />
+                            </button>
 
-                            <span>
-                {new Date(
-                    currentDate.getFullYear(),
-                    currentDate.getMonth(),
-                    day + 1
-                ).getDate()}
-              </span>
-                            {/* Render exam events */}
-                            {dayExams.map((item) => (
-                                <div
-                                    key={`exam-${item.id}`}
-                                    className="flex items-center gap-2 mt-1 p-1 text-sm cursor-pointer border border-gray-300 rounded-lg hover:bg-gray-400"
-                                    onClick={() => handleExamClick(item)}
-                                >
-                                    <PiExam className="text-xl" />
-                                    {item.title}
+                            <div className="flex flex-col items-center sm:items-start">
+                                <span>
+                                    {new Date(currentDate.getFullYear(), currentDate.getMonth(), day + 1).getDate()}
+                                </span>
+                                
+                                {/* Content indicator for mobile */}
+                                <div className="sm:hidden mt-1">
+                                    {hasEvents && (
+                                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                    )}
                                 </div>
-                            ))}
-                            {/* Render assignment events */}
-                            {dayAssignments.map((item) => (
-                                <div
-                                    key={`assignment-${item.id}`}
-                                    className={`flex items-center justify-between mt-1 p-1 text-sm border rounded-lg`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <MdOutlineAssignment className="text-xl" />
-                                        {item.title}
-                                    </div>
-                                    <select
-                                        value={item.status || 0}
-                                        onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
-                                        className={`text-xs p-1 rounded border-none focus:ring-0 cursor-pointer ${getStatusText(item.status).color}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <option className="bg-gray-200" value={0}>Not Started</option>
-                                        <option className="bg-yellow-200" value={1}>In Progress</option>
-                                        <option className="bg-green-200" value={2}>Completed</option>
-                                    </select>
+
+                                {/* Full content for desktop */}
+                                <div className="hidden sm:block w-full">
+                                    {dayExams.map((item) => (
+                                        <div 
+                                            key={`exam-${item.id}`} 
+                                            onClick={(e) => handleExamClick(e, item.id)}
+                                            className="flex items-center gap-2 mt-1 p-1 text-sm border rounded-lg hover:bg-gray-400 cursor-pointer"
+                                        >
+                                            <PiExam className="text-xl" />
+                                            {item.title}
+                                        </div>
+                                    ))}
+                                    {dayAssignments.map((item) => (
+                                        <div 
+                                            key={`assignment-${item.id}`} 
+                                            className="flex items-center justify-between mt-1 p-1 text-sm border rounded-lg"
+                                            onClick={(e) => e.stopPropagation()} // Prevent day click when clicking assignment
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <MdOutlineAssignment className="text-xl" />
+                                                {item.title}
+                                            </div>
+                                            <select
+                                                value={item.status || 0}
+                                                onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
+                                                className={`text-xs p-1 rounded ${getStatusText(item.status).color}`}
+                                            >
+                                                <option className="bg-gray-200" value={0}>Not Started</option>
+                                                <option className="bg-yellow-200" value={1}>In Progress</option>
+                                                <option className="bg-green-200" value={2}>Completed</option>
+                                            </select>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
+                            </div>
                         </div>
                     );
                 })}
             </div>
+
+            {/* Mobile view modal */}
+            {selectedDate && window.innerWidth < 640 && (
+                <DayContentModal
+                    date={selectedDate}
+                    exams={exams.filter(item => item.date.startsWith(selectedDate))}
+                    assignments={assignments.filter(item => item.date.startsWith(selectedDate))}
+                    onClose={() => setSelectedDate(null)}
+                    updateAssignmentStatus={updateAssignmentStatus}
+                />
+            )}
 
             {/* Choice Modal: Ask user whether to add Exam or Assignment */}
             {isChoosingModal && (
