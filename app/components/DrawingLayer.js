@@ -6,13 +6,13 @@ import { BsEraser } from 'react-icons/bs';
 
 const DrawingLayer = ({ isActive, lessonId }) => {
     const canvasRef = useRef(null);
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [context, setContext] = useState(null);
-    const [color, setColor] = useState('#000000');
-    const [brushSize, setBrushSize] = useState(2);
-    const lastPoint = useRef(null);
     const containerRef = useRef(null);
     const [drawings, setDrawings] = useState([]);
+    const [context, setContext] = useState(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const lastPoint = useRef(null);
+    const [color, setColor] = useState('#000000');
+    const [brushSize, setBrushSize] = useState(2);
     const [isLoading, setIsLoading] = useState(true);
     const [currentStroke, setCurrentStroke] = useState(null);
     const [tool, setTool] = useState('brush');
@@ -23,31 +23,28 @@ const DrawingLayer = ({ isActive, lessonId }) => {
         const container = containerRef.current;
         if (!canvas || !container) return;
 
+        const ctx = canvas.getContext('2d');
+        setContext(ctx);
+
         const updateCanvasSize = () => {
             const { width, height } = container.getBoundingClientRect();
-            const dpr = window.devicePixelRatio || 1;
-            
-            // Set canvas dimensions
-            canvas.width = width * dpr;
-            canvas.height = height * dpr;
-            canvas.style.width = `${width}px`;
-            canvas.style.height = `${height}px`;
-            
-            const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            setContext(ctx);
-
-            // Redraw existing drawings after resize
-            if (drawings.length > 0) {
-                setTimeout(() => redrawCanvas(drawings), 0);
-            }
+            canvas.width = width;
+            canvas.height = height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            redrawCanvas(drawings);
         };
 
-        updateCanvasSize();
-        window.addEventListener('resize', updateCanvasSize);
-        return () => window.removeEventListener('resize', updateCanvasSize);
+        // Use requestAnimationFrame to ensure the canvas is updated after layout
+        const resizeObserver = new ResizeObserver(() => {
+            requestAnimationFrame(updateCanvasSize);
+        });
+
+        resizeObserver.observe(container);
+        updateCanvasSize(); // Initial size update
+
+        return () => {
+            resizeObserver.disconnect();
+        };
     }, [drawings]);
 
     useEffect(() => {
@@ -59,6 +56,18 @@ const DrawingLayer = ({ isActive, lessonId }) => {
             redrawCanvas(drawings);
         }
     }, [context]);
+
+    useEffect(() => {
+        if (isActive) {
+            document.body.classList.add('drawing-active');
+        } else {
+            document.body.classList.remove('drawing-active');
+        }
+
+        return () => {
+            document.body.classList.remove('drawing-active');
+        };
+    }, [isActive]);
 
     const loadDrawings = async () => {
         if (!lessonId) return;
@@ -86,7 +95,6 @@ const DrawingLayer = ({ isActive, lessonId }) => {
     const redrawCanvas = (drawingData) => {
         if (!context || !canvasRef.current) return;
         
-        // Clear canvas before redrawing
         const dpr = window.devicePixelRatio || 1;
         context.clearRect(0, 0, canvasRef.current.width / dpr, canvasRef.current.height / dpr);
         
@@ -99,7 +107,6 @@ const DrawingLayer = ({ isActive, lessonId }) => {
 
             context.moveTo(stroke.points[0].x, stroke.points[0].y);
             
-            // Draw lines between points
             for (let i = 1; i < stroke.points.length; i++) {
                 context.lineTo(stroke.points[i].x, stroke.points[i].y);
             }
@@ -111,9 +118,12 @@ const DrawingLayer = ({ isActive, lessonId }) => {
         const rect = canvasRef.current.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
         
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
         return {
-            x: (e.clientX - rect.left) * dpr,
-            y: (e.clientY - rect.top + window.scrollY) * dpr
+            x: (clientX - rect.left),
+            y: (clientY - rect.top)
         };
     };
 
@@ -124,14 +134,13 @@ const DrawingLayer = ({ isActive, lessonId }) => {
         setIsDrawing(true);
 
         if (tool === 'eraser') {
-            // Don't create a stroke for eraser
             return;
         }
 
-        setCurrentStroke({
-            color,
-            brushSize,
-            points: [point]
+        setDrawings(prev => {
+            const newDrawings = [...prev, { color, brushSize, points: [point] }];
+            saveDrawings(newDrawings);
+            return newDrawings;
         });
     };
 
@@ -141,31 +150,52 @@ const DrawingLayer = ({ isActive, lessonId }) => {
         const point = getPoint(e);
         
         if (tool === 'eraser') {
-            // Get the eraser radius in canvas coordinates
             const dpr = window.devicePixelRatio || 1;
             const eraserRadius = eraserSize * dpr;
 
-            // Filter out points that are within the eraser radius
-            const updatedDrawings = drawings.map(stroke => {
-                if (!stroke.points) return stroke;
+            // Create new array of strokes
+            const updatedDrawings = [];
+            
+            drawings.forEach(stroke => {
+                if (!stroke.points || stroke.points.length < 2) return;
 
-                const remainingPoints = stroke.points.filter(p => {
+                let currentSegment = [];
+                let isSegmentValid = true;
+
+                // Check each point in the stroke
+                stroke.points.forEach((p, index) => {
                     const dx = p.x - point.x;
                     const dy = p.y - point.y;
-                    return Math.sqrt(dx * dx + dy * dy) > eraserRadius;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance <= eraserRadius) {
+                        // Point is under eraser
+                        if (currentSegment.length >= 2) {
+                            // Save the current segment if it has enough points
+                            updatedDrawings.push({
+                                ...stroke,
+                                points: [...currentSegment]
+                            });
+                        }
+                        currentSegment = [];
+                        isSegmentValid = false;
+                    } else {
+                        // Point is not under eraser
+                        currentSegment.push(p);
+                        
+                        // If this is the last point and we have a valid segment
+                        if (index === stroke.points.length - 1 && currentSegment.length >= 2) {
+                            updatedDrawings.push({
+                                ...stroke,
+                                points: [...currentSegment]
+                            });
+                        }
+                    }
                 });
+            });
 
-                return {
-                    ...stroke,
-                    points: remainingPoints
-                };
-            }).filter(stroke => stroke.points.length >= 2);
-
-            // Update drawings state and redraw
             setDrawings(updatedDrawings);
             redrawCanvas(updatedDrawings);
-
-            // Save the updated drawings to the database
             saveDrawings(updatedDrawings);
         } else {
             // Normal drawing functionality
@@ -176,12 +206,12 @@ const DrawingLayer = ({ isActive, lessonId }) => {
             context.lineTo(point.x, point.y);
             context.stroke();
             
-            setCurrentStroke(prev => ({
-                ...prev,
-                points: [...prev.points, point]
-            }));
+            const currentStroke = drawings[drawings.length - 1];
+            currentStroke.points.push(point);
         }
 
+        setDrawings([...drawings]);
+        saveDrawings(drawings);
         lastPoint.current = point;
     };
 
@@ -224,31 +254,22 @@ const DrawingLayer = ({ isActive, lessonId }) => {
     };
 
     return (
-        <div 
-            ref={containerRef}
-            className={`fixed inset-0 pointer-events-none ${isActive ? 'pointer-events-auto' : ''} z-40`}
-            style={{ minHeight: '100vh' }}
-        >
+        <div ref={containerRef} className="absolute top-0 left-0 w-full h-full pointer-events-auto z-50">
             <canvas
                 ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full"
+                className="w-full h-full"
                 style={{ touchAction: 'none' }}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseOut={stopDrawing}
-                onTouchStart={(e) => {
-                    e.preventDefault();
-                    startDrawing(e.touches[0]);
-                }}
-                onTouchMove={(e) => {
-                    e.preventDefault();
-                    draw(e.touches[0]);
-                }}
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
                 onTouchEnd={stopDrawing}
+                onTouchCancel={stopDrawing}
             />
             {isActive && (
-                <div className="fixed top-20 right-4 flex flex-col gap-2 bg-white p-2 rounded-lg shadow-lg z-50">
+                <div className="fixed top-20 right-4 flex flex-col gap-2 bg-white p-2 rounded-lg shadow-lg z-50 pointer-events-auto">
                     <div className="flex gap-2 items-center">
                         <button
                             onClick={() => setTool('brush')}

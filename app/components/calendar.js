@@ -81,6 +81,27 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
     </div>
 );
 
+// Add this new component for the status indicator
+const StatusIndicator = ({ status, isMobile }) => {
+    const statusColors = {
+        0: 'bg-gray-200',
+        1: 'bg-yellow-200',
+        2: 'bg-green-200'
+    };
+
+    if (isMobile) {
+        return (
+            <div className={`w-2 h-2 rounded-full ${statusColors[status || 0]}`} />
+        );
+    }
+
+    return (
+        <div className={`text-xs px-2 py-1 rounded ${statusColors[status || 0]}`}>
+            {getStatusText(status).text}
+        </div>
+    );
+};
+
 const Calendar = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [exams, setExams] = useState([]);
@@ -277,15 +298,19 @@ const Calendar = () => {
                                     {new Date(currentDate.getFullYear(), currentDate.getMonth(), day + 1).getDate()}
                                 </span>
                                 
-                                {/* Content indicator for mobile */}
-                                <div className="sm:hidden mt-1">
-                                    {hasEvents && (
-                                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                                    )}
+                                {/* Content for mobile and small screens */}
+                                <div className="lg:hidden mt-1 flex flex-wrap gap-1 justify-center">
+                                    {dayAssignments.map((item) => (
+                                        <StatusIndicator 
+                                            key={item.id} 
+                                            status={item.status} 
+                                            isMobile={true}
+                                        />
+                                    ))}
                                 </div>
 
-                                {/* Full content for desktop */}
-                                <div className="hidden sm:block w-full">
+                                {/* Full content for larger screens */}
+                                <div className="hidden lg:block w-full">
                                     {dayExams.map((item) => (
                                         <div 
                                             key={`exam-${item.id}`} 
@@ -299,8 +324,8 @@ const Calendar = () => {
                                     {dayAssignments.map((item) => (
                                         <div 
                                             key={`assignment-${item.id}`} 
-                                            className="flex items-center justify-between mt-1 p-1 text-sm border rounded-lg"
-                                            onClick={(e) => e.stopPropagation()} // Prevent day click when clicking assignment
+                                            className="flex flex-col gap-1 mt-1 p-1 text-sm border rounded-lg"
+                                            onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="flex items-center gap-2">
                                                 <MdOutlineAssignment className="text-xl" />
@@ -309,7 +334,7 @@ const Calendar = () => {
                                             <select
                                                 value={item.status || 0}
                                                 onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
-                                                className={`text-xs p-1 rounded ${getStatusText(item.status).color}`}
+                                                className={`w-100% text-xs p-1 rounded ${getStatusText(item.status).color}`}
                                             >
                                                 <option className="bg-gray-200" value={0}>Not Started</option>
                                                 <option className="bg-yellow-200" value={1}>In Progress</option>

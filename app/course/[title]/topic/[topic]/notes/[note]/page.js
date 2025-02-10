@@ -26,6 +26,7 @@ import {
 } from 'react-icons/md';
 import BlockRenderer from './BlockRenderer';
 import DrawingLayer from '@/app/components/DrawingLayer';
+import MindMap from '@/app/components/MindMap';
 
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
@@ -409,84 +410,97 @@ export default function NotePage({ params }) {
                 </div>
             </div>
 
-            <div className="relative flex-grow">
-                {isDrawingMode && <DrawingLayer isActive={isDrawingMode} lessonId={lessonId} />}
-
-                <div className="relative z-30">
-                    <DragDropContextWrapper onDragEnd={handleDragEnd}>
-                        <DroppableWrapper 
-                            droppableId="blocks"
-                            type="DEFAULT"
-                            direction="vertical"
-                        >
-                            {(provided, snapshot) => (
-                                <div
-                                    {...provided.droppableProps}
-                                    ref={provided.innerRef}
-                                    className={`flex-grow p-4 max-w-4xl mx-auto w-full ${
-                                        snapshot.isDraggingOver ? 'bg-gray-50' : ''
-                                    }`}
-                                >
-                                    <div className="min-h-[75vh] relative">
-                                        {blocks.map((block, index) => {
-                                            const blockId = String(block.id);
-                                            const isLastBlock = index === blocks.length - 1;
-                                            return (
-                                                <DraggableWrapper
-                                                    key={blockId}
-                                                    draggableId={blockId}
-                                                    index={index}
-                                                >
-                                                    {(provided, snapshot) => (
-                                                        <>
-                                                            <div
-                                                                {...provided.dragHandleProps}
-                                                                className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-move p-2"
-                                                            >
-                                                                <MdDragIndicator />
-                                                            </div>
-                                                            <BlockRenderer
-                                                                block={block}
-                                                                onChange={(content, properties) => 
-                                                                    handleBlockChange(blockId, content, properties)
-                                                                }
-                                                                onRemove={() => removeBlock(index)}
-                                                                onEnterPress={handleEnterPress}
-                                                                onBackspacePress={handleBackspacePress}
-                                                                onSlashCommand={handleSlashCommand}
-                                                                onTransformBlock={transformBlock}
-                                                                index={index}
-                                                                isLastBlock={isLastBlock}
-                                                                onFocusNext={focusNextBlock}
-                                                                onFocusPrevious={focusPreviousBlock}
-                                                            />
-                                                            {isLastBlock && (
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        const rect = e.target.getBoundingClientRect();
-                                                                        setMenuPosition({
-                                                                            x: rect.left,
-                                                                            y: rect.bottom + window.scrollY
-                                                                        });
-                                                                        setShowBlockMenu(index);
-                                                                    }}
-                                                                    className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-full p-1"
+            <div className="flex flex-grow">
+                {/* Left Column: Note (including Drawing/Markdown) */}
+                <div className="w-1/2 border-r border-gray-200 overflow-y-auto" style={{ marginRight: "50%" }}>
+                    <div className="note-content-container relative z-30 w-full">
+                        <DrawingLayer isActive={isDrawingMode} lessonId={lessonId} />
+                        
+                        <DragDropContextWrapper onDragEnd={handleDragEnd}>
+                            <DroppableWrapper 
+                                droppableId="blocks"
+                                type="DEFAULT"
+                                direction="vertical"
+                            >
+                                {(provided, snapshot) => (
+                                    <div
+                                        {...provided.droppableProps}
+                                        ref={provided.innerRef}
+                                        className={`flex-grow p-4 max-w-4xl mx-auto w-full ${
+                                            snapshot.isDraggingOver ? 'bg-gray-50' : ''
+                                        }`}
+                                    >
+                                        <div className="min-h-[75vh] relative">
+                                            {blocks.map((block, index) => {
+                                                const blockId = String(block.id);
+                                                const isLastBlock = index === blocks.length - 1;
+                                                return (
+                                                    <DraggableWrapper
+                                                        key={blockId}
+                                                        draggableId={blockId}
+                                                        index={index}
+                                                    >
+                                                        {(provided, snapshot) => (
+                                                            <>
+                                                                <div
+                                                                    {...provided.dragHandleProps}
+                                                                    className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-move p-2"
                                                                 >
-                                                                    <FaPlus />
-                                                                </button>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </DraggableWrapper>
-                                            );
-                                        })}
-                                        {provided.placeholder}
+                                                                    <MdDragIndicator />
+                                                                </div>
+                                                                <BlockRenderer
+                                                                    block={block}
+                                                                    onChange={(content, properties) => 
+                                                                        handleBlockChange(blockId, content, properties)
+                                                                    }
+                                                                    onRemove={() => removeBlock(index)}
+                                                                    onEnterPress={handleEnterPress}
+                                                                    onBackspacePress={handleBackspacePress}
+                                                                    onSlashCommand={handleSlashCommand}
+                                                                    onTransformBlock={transformBlock}
+                                                                    index={index}
+                                                                    isLastBlock={isLastBlock}
+                                                                    onFocusNext={focusNextBlock}
+                                                                    onFocusPrevious={focusPreviousBlock}
+                                                                />
+                                                                {isLastBlock && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            const rect = e.target.getBoundingClientRect();
+                                                                            setMenuPosition({
+                                                                                x: rect.left,
+                                                                                y: rect.bottom + window.scrollY
+                                                                            });
+                                                                            setShowBlockMenu(index);
+                                                                        }}
+                                                                        className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-full p-1"
+                                                                    >
+                                                                        <FaPlus />
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </DraggableWrapper>
+                                                );
+                                            })}
+                                            {provided.placeholder}
+                                        </div>
+                                        <div className="h-[25vh]" />
                                     </div>
-                                    <div className="h-[25vh]" />
-                                </div>
-                            )}
-                        </DroppableWrapper>
-                    </DragDropContextWrapper>
+                                )}
+                            </DroppableWrapper>
+                        </DragDropContextWrapper>
+                    </div>
+                </div>
+
+                {/* Right Column: Fixed MindMap */}
+                <div className="fixed top-[64px] right-0 h-[calc(100vh-64px)] w-1/2 border-l border-gray-200 bg-white">
+                    <div className="text-center py-4 border-b border-gray-200">
+                        <h1 className="text-2xl font-bold">{title}</h1>
+                    </div>
+                    <div className="relative h-full">
+                        <MindMap lessonId={lessonId} />
+                    </div>
                 </div>
             </div>
 
