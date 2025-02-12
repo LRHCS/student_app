@@ -7,6 +7,7 @@ import { CiEdit } from "react-icons/ci";
 import { RiDeleteBin5Line } from "react-icons/ri";
 import { AiOutlinePlus } from "react-icons/ai";
 import { supabase } from "@/app/utils/client";
+import ProfileLink from "@/app/components/ProfileLink";
 
 export default function Page({ params }) {
     const resolvedParams = use(params);
@@ -21,6 +22,7 @@ export default function Page({ params }) {
     const [newTopicTitle, setNewTopicTitle] = useState("");
     const [newExamData, setNewExamData] = useState({ title: '', date: '', topicId: '' });
     const [newAssignmentData, setNewAssignmentData] = useState({ title: '', date: '', topicId: '' });
+    const [examLessons, setExamLessons] = useState({});
 
     useEffect(() => {
         const fetchTopics = async () => {
@@ -59,16 +61,36 @@ export default function Page({ params }) {
 
         const topicIds = topics.map((topic) => topic.id);
 
-        const fetchExams = async () => {
+        const fetchExamsAndLessons = async () => {
+            // Fetch exams
             const { data: examsData, error: examsError } = await supabase
                 .from("Exams")
                 .select("*")
                 .in("topicId", topicIds);
+            
             if (examsError) {
                 console.error("Error fetching exams:", examsError);
                 return;
             }
+            
             setExams(examsData);
+
+            // Fetch lessons for each exam
+            const lessonsMap = {};
+            for (const exam of examsData) {
+                const { data: lessonData, error: lessonError } = await supabase
+                    .from("Lessons")
+                    .select("*")
+                    .eq("topic_id", exam.topicId);
+                
+                if (lessonError) {
+                    console.error("Error fetching lessons:", lessonError);
+                    continue;
+                }
+                
+                lessonsMap[exam.id] = lessonData;
+            }
+            setExamLessons(lessonsMap);
         };
 
         const fetchAssignments = async () => {
@@ -83,7 +105,7 @@ export default function Page({ params }) {
             setAssignments(assignmentsData);
         };
 
-        fetchExams();
+        fetchExamsAndLessons();
         fetchAssignments();
     }, [topics]);
 
@@ -244,8 +266,56 @@ export default function Page({ params }) {
         ));
     };
 
+    // Add this function to handle lesson status updates
+    const updateLessonStatus = async (lessonId, newStatus) => {
+        const { error } = await supabase
+            .from("Lessons")
+            .update({ status: newStatus })
+            .eq("id", lessonId);
+
+        if (error) {
+            console.error("Error updating lesson status:", error);
+            return;
+        }
+
+        // Update the local state
+        setExamLessons(prevLessons => {
+            const newLessons = { ...prevLessons };
+            Object.keys(newLessons).forEach(examId => {
+                newLessons[examId] = newLessons[examId].map(lesson =>
+                    lesson.id === lessonId ? { ...lesson, status: newStatus } : lesson
+                );
+            });
+            return newLessons;
+        });
+    };
+
+    // New function to delete a lesson (note)
+    const deleteLesson = async (lessonId) => {
+        if (!window.confirm("Are you sure you want to delete this note?")) return;
+
+        const { error } = await supabase
+            .from("Lessons")
+            .delete()
+            .eq("id", lessonId);
+
+        if (error) {
+            console.error("Error deleting lesson:", error);
+            return;
+        }
+
+        setExamLessons(prevLessons => {
+            const newLessons = { ...prevLessons };
+            Object.keys(newLessons).forEach(examId => {
+                newLessons[examId] = newLessons[examId].filter(lesson => lesson.id !== lessonId);
+            });
+            return newLessons;
+        });
+    };
+
     return (
         <div className="p-4 relative">
+            <ProfileLink />
             <Link href="../" className="hover:underline mb-4 inline-block">
                 Dashboard
             </Link>
@@ -267,11 +337,11 @@ export default function Page({ params }) {
             {/* Topics List */}
             <ul className="flex-wrap flex-row flex gap-4 mb-8">
                 {topics.map((topic) => (
-                    <Card key={topic.id} className="p-4 flex items-center justify-between w-full">
+                    <Card key={topic.id} className="p-4 relative group flex items-center justify-between w-full">
                         <Link href={`/course/${title}/topic/${topic.title}`} className="text-lg font-medium">
                             {topic.title}
                         </Link>
-                        <div className="flex items-center gap-2">
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
                             <button onClick={() => openModal("edit", topic)} className="p-2 text-gray-950">
                                 <CiEdit />
                             </button>
@@ -298,10 +368,52 @@ export default function Page({ params }) {
                     {exams.length > 0 ? (
                         <ul className="mb-8">
                             {exams.map((exam) => (
-                                <li key={exam.id} className="p-2 border border-gray-300 rounded mb-2">
-                                    <Link href={`/exam/${exam.id}`} className="hover:underline">
-                                        {exam.title} – {exam.date}
-                                    </Link>
+                                <li key={exam.id} className="p-4 border border-gray-300 rounded mb-4">
+                                    <div className="mb-2">
+                                        <Link href={`/exam/${exam.id}`} className="hover:underline font-semibold">
+                                            {exam.title} – {exam.date}
+                                        </Link>
+                                    </div>
+                                    
+                                    {/* Notes/Lessons section */}
+                                    {examLessons[exam.id]?.length > 0 ? (
+                                        <div className="ml-4">
+                                            <ul className="space-y-2">
+                                                {examLessons[exam.id].map((lesson) => (
+                                                    <li key={lesson.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                                        <Link 
+                                                            href={`/course/${encodeURIComponent(title)}/topic/${encodeURIComponent(topics.find(t => t.id === lesson.topic_id)?.title || '')}/notes/${lesson.id}`}
+                                                            className="text-sm hover:underline"
+                                                        >
+                                                            {lesson.title}
+                                                        </Link>
+                                                        <div className="flex items-center">
+                                                            <select
+                                                                value={lesson.status || 0}
+                                                                onChange={(e) => updateLessonStatus(lesson.id, Number(e.target.value))}
+                                                                className={`text-sm p-1 rounded ${getStatusText(lesson.status).color}`}
+                                                            >
+                                                                <option className="bg-gray-200" value={0}>Not Started</option>
+                                                                <option className="bg-yellow-200" value={1}>In Progress</option>
+                                                                <option className="bg-green-200" value={2}>Completed</option>
+                                                            </select>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    deleteLesson(lesson.id);
+                                                                }}
+                                                                className="p-1 ml-2 text-red-700"
+                                                            >
+                                                                <RiDeleteBin5Line />
+                                                            </button>
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 ml-4">No notes available</p>
+                                    )}
                                 </li>
                             ))}
                         </ul>

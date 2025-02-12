@@ -5,7 +5,7 @@ import { IoMdAdd } from "react-icons/io";
 import { GrFormPreviousLink, GrFormNextLink } from "react-icons/gr";
 import Link from "next/link";
 import { PiExam } from "react-icons/pi";
-import { MdOutlineAssignment } from "react-icons/md";
+import { MdOutlineAssignment, MdDelete, MdEdit } from "react-icons/md";
 import { redirect } from "next/navigation";
 import { loadCalendarData } from "../utils/loadCalendarData";
 
@@ -111,6 +111,9 @@ const Calendar = () => {
     const [selectedCourse, setSelectedCourse] = useState("");
     const [selectedExam, setSelectedExam] = useState(null);
     const [selectedDate, setSelectedDate] = useState(null);
+    // New states to track which exam/assignment is hovered:
+    const [hoveredExamId, setHoveredExamId] = useState(null);
+    const [hoveredAssignmentId, setHoveredAssignmentId] = useState(null);
 
     // For handling add modal for exam/assignment
     const [isChoosingModal, setIsChoosingModal] = useState(false);
@@ -181,24 +184,86 @@ const Calendar = () => {
     // ----------------------------
     const handleSubmitExam = async (e) => {
         e.preventDefault();
-        const { error } = await supabase.from("Exams").insert([newExam]);
-        if (!error) {
-            setExams([...exams, { ...newExam, id: Date.now() }]);
-            resetModals();
+        
+        if (newExam.id) {
+            // Update existing exam
+            const { data, error } = await supabase
+                .from("Exams")
+                .update({
+                    title: newExam.title,
+                    date: newExam.date,
+                    topicId: newExam.topicId
+                })
+                .eq('id', newExam.id)
+                .select()
+                .single();
+
+            if (!error && data) {
+                setExams(exams.map(exam => 
+                    exam.id === newExam.id ? data : exam
+                ));
+                resetModals();
+            } else {
+                console.error("Error updating exam:", error);
+            }
+        } else {
+            // Create new exam
+            const { data, error } = await supabase
+                .from("Exams")
+                .insert([newExam])
+                .select()
+                .single();
+
+            if (!error && data) {
+                setExams([...exams, data]);
+                resetModals();
+            } else {
+                console.error("Error creating exam:", error);
+            }
         }
     };
 
     const handleSubmitAssignment = async (e) => {
         e.preventDefault();
-        const { error } = await supabase
-            .from("Assignments")
-            .insert([{
-                ...newAssignment,
-                status: 0 // Set initial status to "Not Started"
-            }]);
-        if (!error) {
-            setAssignments([...assignments, { ...newAssignment, id: Date.now(), status: 0 }]);
-            resetModals();
+        
+        if (newAssignment.id) {
+            // Update existing assignment
+            const { data, error } = await supabase
+                .from("Assignments")
+                .update({
+                    title: newAssignment.title,
+                    date: newAssignment.date,
+                    topicId: newAssignment.topicId
+                })
+                .eq('id', newAssignment.id)
+                .select()
+                .single();
+
+            if (!error && data) {
+                setAssignments(assignments.map(assignment => 
+                    assignment.id === newAssignment.id ? { ...data, status: assignment.status } : assignment
+                ));
+                resetModals();
+            } else {
+                console.error("Error updating assignment:", error);
+            }
+        } else {
+            // Create new assignment
+            const { data, error } = await supabase
+                .from("Assignments")
+                .insert([{
+                    ...newAssignment,
+                    status: 0
+                }])
+                .select()
+                .single();
+
+            if (!error && data) {
+                setAssignments([...assignments, data]);
+                resetModals();
+            } else {
+                console.error("Error creating assignment:", error);
+            }
         }
     };
 
@@ -232,6 +297,56 @@ const Calendar = () => {
         if (isMobile) {
             setSelectedDate(date);
         }
+    };
+
+    const handleDeleteExam = async (examId) => {
+        if (window.confirm('Are you sure you want to delete this exam?')) {
+            const { error } = await supabase
+                .from("Exams")
+                .delete()
+                .eq("id", examId);
+
+            if (!error) {
+                setExams(exams.filter(exam => exam.id !== examId));
+            } else {
+                console.error("Error deleting exam:", error);
+            }
+        }
+    };
+
+    const handleDeleteAssignment = async (assignmentId) => {
+        if (window.confirm('Are you sure you want to delete this assignment?')) {
+            const { error } = await supabase
+                .from("Assignments")
+                .delete()
+                .eq("id", assignmentId);
+
+            if (!error) {
+                setAssignments(assignments.filter(assignment => assignment.id !== assignmentId));
+            } else {
+                console.error("Error deleting assignment:", error);
+            }
+        }
+    };
+
+    const handleEditExam = (exam) => {
+        setNewExam({
+            title: exam.title,
+            date: exam.date,
+            topicId: exam.topicId,
+            id: exam.id
+        });
+        setModalType("exam");
+    };
+
+    const handleEditAssignment = (assignment) => {
+        setNewAssignment({
+            title: assignment.title,
+            date: assignment.date,
+            topicId: assignment.topicId,
+            id: assignment.id
+        });
+        setModalType("assignment");
     };
 
     return (
@@ -315,26 +430,68 @@ const Calendar = () => {
                                         <div 
                                             key={`exam-${item.id}`} 
                                             onClick={(e) => handleExamClick(e, item.id)}
-                                            className="flex items-center gap-2 mt-1 p-1 text-sm border rounded-lg hover:bg-gray-400 cursor-pointer"
+                                            className="flex items-center justify-between mt-1 p-1 text-sm border rounded-lg hover:bg-gray-100 cursor-pointer"
+                                            onMouseEnter={() => setHoveredExamId(item.id)}
+                                            onMouseLeave={() => setHoveredExamId(null)}
                                         >
-                                            <PiExam className="text-xl" />
-                                            {item.title}
+                                            <div className="flex items-center gap-2">
+                                                <PiExam className="text-xl" />
+                                                {item.title}
+                                            </div>
+                                            <div className={`flex gap-2 transition-opacity ${hoveredExamId === item.id ? 'opacity-100' : 'opacity-0'}`}>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleEditExam(item);
+                                                    }}
+                                                    className="text-gray-500 hover:text-gray-700"
+                                                >
+                                                    <MdEdit size={16} />
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteExam(item.id);
+                                                    }}
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    <MdDelete size={16} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                     {dayAssignments.map((item) => (
                                         <div 
                                             key={`assignment-${item.id}`} 
                                             className="flex flex-col gap-1 mt-1 p-1 text-sm border rounded-lg"
+                                            onMouseEnter={() => setHoveredAssignmentId(item.id)}
+                                            onMouseLeave={() => setHoveredAssignmentId(null)}
                                             onClick={(e) => e.stopPropagation()}
                                         >
-                                            <div className="flex items-center gap-2">
-                                                <MdOutlineAssignment className="text-xl" />
-                                                {item.title}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <MdOutlineAssignment className="text-xl" />
+                                                    {item.title}
+                                                </div>
+                                                <div className={`flex gap-2 transition-opacity ${hoveredAssignmentId === item.id ? 'opacity-100' : 'opacity-0'}`}>
+                                                    <button 
+                                                        onClick={() => handleEditAssignment(item)}
+                                                        className="text-gray-500 hover:text-gray-700"
+                                                    >
+                                                        <MdEdit size={16} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteAssignment(item.id)}
+                                                        className="text-red-500 hover:text-red-700"
+                                                    >
+                                                        <MdDelete size={16} />
+                                                    </button>
+                                                </div>
                                             </div>
                                             <select
                                                 value={item.status || 0}
                                                 onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
-                                                className={`w-100% text-xs p-1 rounded ${getStatusText(item.status).color}`}
+                                                className={`w-24 text-xs p-1 rounded ${getStatusText(item.status).color}`}
                                             >
                                                 <option className="bg-gray-200" value={0}>Not Started</option>
                                                 <option className="bg-yellow-200" value={1}>In Progress</option>

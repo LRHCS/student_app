@@ -14,8 +14,11 @@ import {
     MdOutlineTableChart,
     MdInfo,
     MdHorizontalRule,
-    MdVideoLibrary
+    MdVideoLibrary,
+    MdDragHandle
 } from 'react-icons/md';
+import { supabase } from '@/app/utils/client';
+import { v4 as uuidv4 } from 'uuid';
 
 const BLOCK_OPTIONS = [
     { type: 'text', icon: MdTextFields, label: 'Text' },
@@ -35,6 +38,10 @@ const BLOCK_OPTIONS = [
     { type: 'link', icon: MdLink, label: 'Link' },
 ];
 
+const calculateAspectRatio = (width, height) => {
+    return (height / width) * 100;
+};
+
 const BlockRenderer = ({ 
     block, 
     onChange, 
@@ -53,7 +60,14 @@ const BlockRenderer = ({
     const inputRef = useRef(null);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
     const paletteRef = useRef(null);
+    const [aspectRatio, setAspectRatio] = useState(null);
+    const containerRef = useRef(null);
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
+    useEffect(() => {
+        getProfile();
+    }, []);
     useEffect(() => {
         if (inputRef.current && block.content === '') {
             inputRef.current.focus();
@@ -65,6 +79,21 @@ const BlockRenderer = ({
             setSelectedOptionIndex(0);
         }
     }, [showCommandPalette]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (containerRef.current) {
+                const container = containerRef.current;
+                const originalWidth = container.offsetWidth;
+                const originalHeight = container.offsetHeight;
+                setAspectRatio(calculateAspectRatio(originalWidth, originalHeight));
+            }
+        };
+
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const adjustTextareaHeight = (element) => {
         if (element) {
@@ -192,6 +221,75 @@ const BlockRenderer = ({
             adjustTextareaHeight(inputRef.current);
         }
     }, [block.content, block.type]);
+    async function getProfile() {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                let { data, error, status } = await supabase
+                    .from("Profiles")
+                    .select(`id, firstname, lastname, avatar`)
+                    .eq("id", user.id)
+                    .single();
+
+                if (error && status !== 406) {
+                    throw error;
+                }
+
+                if (data) {
+                    setUser({...data, id: user.id});
+                }
+            }
+        } catch (error) {
+            console.error('Error loading profile:', error.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+    const handleImageUpload = async (file) => {
+        try {
+            if (!file) return;
+            if (!user?.id) {
+                throw new Error('Please sign in to upload images');
+            }
+
+            // Generate unique file path
+            const fileExt = file.name.split(".").pop();
+            const fileName = `${Date.now()}.${fileExt}`;
+            const filePath = `${user.id}/${fileName}`;
+
+            // Upload file to Supabase
+            const { error: uploadError } = await supabase.storage
+                .from("screenshot")
+                .upload(filePath, file);
+
+            if (uploadError) {
+                throw uploadError;
+            }
+
+            // Get public URL
+            const { data: urlData } = supabase.storage
+                .from("screenshot")
+                .getPublicUrl(filePath);
+
+            // Update block content with the public URL
+            onChange(urlData.publicUrl);
+            setIsEditing(false);
+
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            alert(error.message || 'Error uploading image');
+        }
+    };
+
+    const handleResize = (width) => {
+        // Update block properties with new width
+        const newProperties = {
+            ...block.properties,
+            width: Math.max(200, Math.min(width, containerRef.current?.offsetWidth || width))
+        };
+        onChange(block.content, newProperties);
+    };
 
     const renderInput = () => {
         const commonProps = {
@@ -241,32 +339,50 @@ const BlockRenderer = ({
                 );
             case 'image':
                 return (
-                    <div className="relative group">
+                    <div className="relative group" ref={containerRef}>
                         <div className="p-2">
                             {isEditing ? (
                                 <div className="flex flex-col gap-2">
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={block.content}
-                                        onChange={(e) => onChange(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                setIsEditing(false);
-                                            }
-                                        }}
-                                        className="w-full p-2 border rounded"
-                                        placeholder="Paste image URL..."
-                                        autoFocus
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                        <button
-                                            onClick={() => setIsEditing(false)}
-                                            className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-                                        >
-                                            Add Image
-                                        </button>
+                                    <div className="flex flex-col gap-2">
+                                        <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={block.content}
+                                            onChange={(e) => onChange(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    setIsEditing(false);
+                                                }
+                                            }}
+                                            className="w-full p-2 border rounded"
+                                            placeholder="Paste image URL..."
+                                        />
+                                        <div className="text-center text-gray-500">- or -</div>
+                                        <div className="flex flex-col gap-2">
+                                            {loading ? (
+                                                <div className="text-center text-gray-500">Loading...</div>
+                                            ) : user ? (
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handleImageUpload(e.target.files[0])}
+                                                    className="w-full p-2 border rounded"
+                                                />
+                                            ) : (
+                                                <div className="text-center text-red-500">
+                                                    Please sign in to upload images
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => setIsEditing(false)}
+                                                className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+                                            >
+                                                Add Image
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -275,25 +391,54 @@ const BlockRenderer = ({
                                         <div 
                                             className="relative group cursor-pointer"
                                             onClick={() => setIsEditing(true)}
+                                            style={{
+                                                width: block.properties?.width || '100%',
+                                                paddingBottom: aspectRatio ? `${aspectRatio}%` : '56.25%',
+                                                position: 'relative'
+                                            }}
                                         >
-                                            <div className="relative aspect-video">
-                                                <Image
-                                                    src={block.content}
-                                                    alt="Block image"
-                                                    fill
-                                                    className="object-contain"
-                                                    onError={() => {
-                                                        onChange(''); // Clear invalid image URL
-                                                        setIsEditing(true);
-                                                    }}
-                                                />
-                                            </div>
+                                            <Image
+                                                src={block.content}
+                                                alt="Block image"
+                                                fill
+                                                className="object-contain"
+                                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                                onError={() => {
+                                                    onChange('');
+                                                    setIsEditing(true);
+                                                }}
+                                            />
                                             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all">
                                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
                                                     <span className="text-white bg-black bg-opacity-50 px-3 py-1 rounded">
                                                         Click to edit
                                                     </span>
                                                 </div>
+                                            </div>
+                                            {/* Resize handle */}
+                                            <div
+                                                className="absolute bottom-0 right-0 w-4 h-4 cursor-ew-resize opacity-0 group-hover:opacity-100"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation(); // Prevent image click
+                                                    const startX = e.pageX;
+                                                    const startWidth = block.properties?.width || containerRef.current?.offsetWidth || 0;
+                                                    
+                                                    const handleMouseMove = (moveEvent) => {
+                                                        const delta = moveEvent.pageX - startX;
+                                                        const newWidth = startWidth + delta;
+                                                        handleResize(newWidth);
+                                                    };
+                                                    
+                                                    const handleMouseUp = () => {
+                                                        document.removeEventListener('mousemove', handleMouseMove);
+                                                        document.removeEventListener('mouseup', handleMouseUp);
+                                                    };
+                                                    
+                                                    document.addEventListener('mousemove', handleMouseMove);
+                                                    document.addEventListener('mouseup', handleMouseUp);
+                                                }}
+                                            >
+                                                <MdDragHandle className="text-white bg-black bg-opacity-50 rounded w-full h-full p-0.5" />
                                             </div>
                                         </div>
                                     ) : (
@@ -312,7 +457,7 @@ const BlockRenderer = ({
                         </div>
                         <button
                             onClick={onRemove}
-                            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100"
+                            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 bg-black bg-opacity-50 text-white rounded-full w-6 h-6 flex items-center justify-center"
                         >
                             ×
                         </button>
@@ -374,12 +519,6 @@ const BlockRenderer = ({
                 return (
                     <div className="relative group">
                         {renderInput()}
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             case 'checklist':
@@ -404,12 +543,6 @@ const BlockRenderer = ({
                                 placeholder="List item..."
                             />
                         </div>
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             case 'bullet-list':
@@ -427,12 +560,6 @@ const BlockRenderer = ({
                                 placeholder="List item..."
                             />
                         </div>
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             case 'numbered-list':
@@ -450,12 +577,6 @@ const BlockRenderer = ({
                                 placeholder="List item..."
                             />
                         </div>
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             case 'quote':
@@ -471,12 +592,6 @@ const BlockRenderer = ({
                                 placeholder="Enter quote..."
                             />
                         </div>
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             case 'table':
@@ -528,12 +643,6 @@ const BlockRenderer = ({
                                 </button>
                             </div>
                         </div>
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             case 'callout':
@@ -550,24 +659,12 @@ const BlockRenderer = ({
                                 placeholder="Add a callout..."
                             />
                         </div>
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             case 'divider':
                 return (
                     <div className="relative group py-4">
                         <hr className="border-gray-300" />
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                         <input
                             type="text"
                             className="w-0 h-0 opacity-0 absolute"
@@ -597,7 +694,7 @@ const BlockRenderer = ({
                 };
 
                 return (
-                    <div className="relative group">
+                    <div className="relative group" ref={containerRef}>
                         {isEditing ? (
                             <div className="flex flex-col gap-2">
                                 <input
@@ -624,19 +721,23 @@ const BlockRenderer = ({
                             </div>
                         ) : (
                             <div 
-                                className="aspect-video bg-gray-100 rounded"
+                                className="relative"
+                                style={{
+                                    width: '100%',
+                                    paddingBottom: aspectRatio ? `${aspectRatio}%` : '56.25%', // Default 16:9 ratio
+                                }}
                                 onClick={() => !block.content && setIsEditing(true)}
                             >
                                 {block.content ? (
                                     <iframe
                                         src={getEmbedUrl(block.content)}
-                                        className="w-full h-full rounded"
+                                        className="absolute top-0 left-0 w-full h-full rounded"
                                         frameBorder="0"
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                         allowFullScreen
                                     />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-500">
+                                    <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
                                         <div className="flex flex-col items-center gap-2">
                                             <MdVideoLibrary className="text-3xl" />
                                             <span>Click to add YouTube URL</span>
@@ -645,12 +746,6 @@ const BlockRenderer = ({
                                 )}
                             </div>
                         )}
-                        <button
-                            onClick={onRemove}
-                            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100"
-                        >
-                            ×
-                        </button>
                     </div>
                 );
             default:
@@ -662,7 +757,7 @@ const BlockRenderer = ({
         <>
             {renderBlock()}
             {showCommandPalette && (
-                <div className="absolute left-0 mt-1 w-64 bg-white shadow-lg rounded-lg overflow-hidden z-50 border">
+                <div className="fixed left-0 mt-1 w-64 bg-white shadow-lg rounded-lg overflow-hidden z-[100] border" style={{ top: inputRef.current?.getBoundingClientRect().bottom ?? 0, left: inputRef.current?.getBoundingClientRect().left ?? 0 }}>
                     <div 
                         ref={paletteRef}
                         className="py-2 max-h-64 overflow-y-auto"

@@ -148,47 +148,31 @@ const DrawingLayer = ({ isActive, lessonId }) => {
         if (!isDrawing || !isActive || !context || !lastPoint.current) return;
 
         const point = getPoint(e);
-        
+
         if (tool === 'eraser') {
             const dpr = window.devicePixelRatio || 1;
             const eraserRadius = eraserSize * dpr;
 
-            // Create new array of strokes
+            // Process each stroke looking for points to remove
             const updatedDrawings = [];
-            
             drawings.forEach(stroke => {
                 if (!stroke.points || stroke.points.length < 2) return;
 
                 let currentSegment = [];
-                let isSegmentValid = true;
-
-                // Check each point in the stroke
                 stroke.points.forEach((p, index) => {
                     const dx = p.x - point.x;
                     const dy = p.y - point.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-                    
+
                     if (distance <= eraserRadius) {
-                        // Point is under eraser
                         if (currentSegment.length >= 2) {
-                            // Save the current segment if it has enough points
-                            updatedDrawings.push({
-                                ...stroke,
-                                points: [...currentSegment]
-                            });
+                            updatedDrawings.push({ ...stroke, points: [...currentSegment] });
                         }
                         currentSegment = [];
-                        isSegmentValid = false;
                     } else {
-                        // Point is not under eraser
                         currentSegment.push(p);
-                        
-                        // If this is the last point and we have a valid segment
                         if (index === stroke.points.length - 1 && currentSegment.length >= 2) {
-                            updatedDrawings.push({
-                                ...stroke,
-                                points: [...currentSegment]
-                            });
+                            updatedDrawings.push({ ...stroke, points: [...currentSegment] });
                         }
                     }
                 });
@@ -197,6 +181,8 @@ const DrawingLayer = ({ isActive, lessonId }) => {
             setDrawings(updatedDrawings);
             redrawCanvas(updatedDrawings);
             saveDrawings(updatedDrawings);
+            lastPoint.current = point;
+            return; // Exit early so normal drawing update doesn't override
         } else {
             // Normal drawing functionality
             context.beginPath();
@@ -206,13 +192,15 @@ const DrawingLayer = ({ isActive, lessonId }) => {
             context.lineTo(point.x, point.y);
             context.stroke();
             
-            const currentStroke = drawings[drawings.length - 1];
-            currentStroke.points.push(point);
+            // Update the current stroke
+            const newDrawings = [...drawings];
+            if (newDrawings.length > 0) {
+                newDrawings[newDrawings.length - 1].points.push(point);
+            }
+            setDrawings(newDrawings);
+            saveDrawings(newDrawings);
+            lastPoint.current = point;
         }
-
-        setDrawings([...drawings]);
-        saveDrawings(drawings);
-        lastPoint.current = point;
     };
 
     const saveDrawings = async (updatedDrawings) => {
@@ -254,7 +242,10 @@ const DrawingLayer = ({ isActive, lessonId }) => {
     };
 
     return (
-        <div ref={containerRef} className="absolute top-0 left-0 w-full h-full pointer-events-auto z-50">
+        <div
+            ref={containerRef}
+            className={`absolute top-0 left-0 w-full h-full z-40 ${isActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        >
             <canvas
                 ref={canvasRef}
                 className="w-full h-full"

@@ -381,6 +381,38 @@ export default function NotePage({ params }) {
         }, 0);
     };
 
+    // Modify the handleContainerClick function to handle special cases
+    const handleContainerClick = (e) => {
+        // Only proceed if clicking directly on the container (not on blocks)
+        if (e.target === e.currentTarget || e.target.className.includes('h-screen')) {
+            const lastBlock = blocks[blocks.length - 1];
+
+            // Check if the last block is a special type that should not automatically focus
+            if (lastBlock && (lastBlock.type === 'embed' || lastBlock.type === 'image')) {
+                // Create a new text block at the end
+                const newBlock = { type: 'text', content: '', properties: {} };
+                setBlocks(prev => [...prev, newBlock]);
+            } else {
+                // Focus the last block if it's not a special type
+                focusLastBlock();
+            }
+        }
+    };
+
+    // Add a new function to focus the last block
+    const focusLastBlock = () => {
+        const lastIndex = blocks.length - 1;
+        const lastBlockElement = document.querySelector(`[data-block-index="${lastIndex}"]`);
+        if (lastBlockElement) {
+            const input = lastBlockElement.querySelector('input[type="text"], textarea');
+            if (input) {
+                input.focus();
+                const length = input.value.length;
+                input.setSelectionRange(length, length);
+            }
+        }
+    };
+
     return (
         <div className="min-h-screen flex flex-col bg-white">
             <div className="sticky top-0 z-50 bg-gray-100 shadow-sm">
@@ -412,8 +444,8 @@ export default function NotePage({ params }) {
 
             <div className="flex flex-grow">
                 {/* Left Column: Note (including Drawing/Markdown) */}
-                <div className="w-1/2 border-r border-gray-200 overflow-y-auto" style={{ marginRight: "50%" }}>
-                    <div className="note-content-container relative z-30 w-full">
+                <div className="w-1/2 border-r border-gray-200 overflow-y-auto z-30 bg-white">
+                    <div className="note-content-container relative  w-full">
                         <DrawingLayer isActive={isDrawingMode} lessonId={lessonId} />
                         
                         <DragDropContextWrapper onDragEnd={handleDragEnd}>
@@ -426,11 +458,12 @@ export default function NotePage({ params }) {
                                     <div
                                         {...provided.droppableProps}
                                         ref={provided.innerRef}
-                                        className={`flex-grow p-4 max-w-4xl mx-auto w-full ${
+                                        className={`flex-grow p-4 max-w-4xl mx-auto w-full h-screen ${
                                             snapshot.isDraggingOver ? 'bg-gray-50' : ''
                                         }`}
+                                        onClick={handleContainerClick}
                                     >
-                                        <div className="min-h-[75vh] relative">
+                                        <div className="h-fit relative">
                                             {blocks.map((block, index) => {
                                                 const blockId = String(block.id);
                                                 const isLastBlock = index === blocks.length - 1;
@@ -463,21 +496,6 @@ export default function NotePage({ params }) {
                                                                     onFocusNext={focusNextBlock}
                                                                     onFocusPrevious={focusPreviousBlock}
                                                                 />
-                                                                {isLastBlock && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            const rect = e.target.getBoundingClientRect();
-                                                                            setMenuPosition({
-                                                                                x: rect.left,
-                                                                                y: rect.bottom + window.scrollY
-                                                                            });
-                                                                            setShowBlockMenu(index);
-                                                                        }}
-                                                                        className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-full p-1"
-                                                                    >
-                                                                        <FaPlus />
-                                                                    </button>
-                                                                )}
                                                             </>
                                                         )}
                                                     </DraggableWrapper>
@@ -485,7 +503,7 @@ export default function NotePage({ params }) {
                                             })}
                                             {provided.placeholder}
                                         </div>
-                                        <div className="h-[25vh]" />
+                                        <div className="h-screen cursor-text" />
                                     </div>
                                 )}
                             </DroppableWrapper>
@@ -494,12 +512,10 @@ export default function NotePage({ params }) {
                 </div>
 
                 {/* Right Column: Fixed MindMap */}
-                <div className="fixed top-[64px] right-0 h-[calc(100vh-64px)] w-1/2 border-l border-gray-200 bg-white">
-                    <div className="text-center py-4 border-b border-gray-200">
-                        <h1 className="text-2xl font-bold">{title}</h1>
-                    </div>
+                <div className="fixed top-[64px] right-0 h-[calc(100vh-64px)] w-1/2 border-l border-gray-200 bg-white z-10">
+
                     <div className="relative h-full">
-                        <MindMap lessonId={lessonId} />
+                        <MindMap lessonId={lessonId} title={title} />
                     </div>
                 </div>
             </div>

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { AiOutlinePlus } from "react-icons/ai";
 import { supabase } from "@/app/utils/client";
+import ProfileLink from "@/app/components/ProfileLink";
 
 export default function Page({ params }) {
     const [lessons, setLessons] = useState([]);
@@ -100,7 +101,8 @@ export default function Page({ params }) {
     };
 
     return (
-        <div className="p-6">
+        <div className="p-6 relative">
+            <ProfileLink />
             <div className="mb-6">
                 <Link href="../../.." className="hover:underline ">
                     Dashboard

@@ -2,10 +2,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../utils/client';
 
-const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubleClick, onConnectionStart, onConnectionEnd, isConnecting, panOffset }) => {
+const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubleClick, onConnectionStart, onConnectionEnd, isConnecting, panOffset, onDelete }) => {
     const nodeRef = useRef(null);
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const [isHovered, setIsHovered] = useState(false);
 
     const handleMouseDown = (e) => {
         if (e.button === 2) {
@@ -14,6 +15,8 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
             return;
         }
 
+        if (node.isCenter) return; // Prevent dragging on center node with left-click
+        
         if (nodeRef.current) {
             const rect = nodeRef.current.getBoundingClientRect();
             const containerRect = nodeRef.current.parentElement.getBoundingClientRect();
@@ -56,8 +59,10 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
 
     return (
         <div
+            id={`node-${node.id}`}
             ref={nodeRef}
-            className={`absolute p-4 bg-white rounded-lg shadow-lg cursor-move border-2 
+            className={`absolute p-4 bg-white rounded-lg shadow-lg z-0
+                ${node.isCenter ? 'cursor-default' : 'cursor-move'} border-2 
                 ${selected ? 'border-blue-500' : 'border-gray-200'} 
                 ${isDragging ? 'opacity-75' : ''}
                 ${isConnecting ? 'cursor-crosshair' : ''}`}
@@ -66,8 +71,18 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
                 top: node.y + (panOffset?.y || 0),
                 transform: 'translate(-50%, -50%)',
                 minWidth: '120px',
-                zIndex: isDragging ? 1000 : 1
+                backgroundColor: node.isCenter ? 'black' : 'white',
+                color: node.isCenter ? 'white' : 'black',
+                height: node.isCenter ? '100px' : '',
+                width: node.isCenter ? '200px' : '50px',
+                fontSize: node.isCenter ? '20px' : '16px',
+                display: node.isCenter ? 'flex' : 'block',
+                alignItems: node.isCenter ? 'center' : 'flex-start',
+                justifyContent: node.isCenter ? 'center' : 'flex-start',
+                zIndex: 0
             }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             onMouseDown={handleMouseDown}
             onContextMenu={(e) => e.preventDefault()}
             onClick={(e) => {
@@ -83,6 +98,17 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
                 onDoubleClick?.(node.id);
             }}
         >
+            {isHovered && !node.isCenter && (
+                <button
+                    className="absolute top-1 right-1 bg-transparent border-0 text-red-500 text-lg font-bold cursor-pointer"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete?.();
+                    }}
+                >
+                    ×
+                </button>
+            )}
             <div className="text-center">
                 {node.isEditing ? (
                     <input
@@ -105,25 +131,66 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
 };
 
 const Connection = ({ start, end, isTemp = false, panOffset }) => {
+    // Adjust the end point so that the arrow stops at the edge of an elliptical node.
+    let adjustedEnd = end;
+    if (end && end.id) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const angle = Math.atan2(dy, dx);
+
+        // Define horizontal and vertical radii for the ellipse.
+        const a = end.isCenter ? 100 : 60; // horizontal radius: 100 if center node, else 60
+        const b = end.isCenter ? 50 : 40;  // vertical radius: 50 if center node, else 40
+
+        // Solve for t in: (t*cos(angle))^2/(a^2) + (t*sin(angle))^2/(b^2) = 1
+        let t = 1 / Math.sqrt((Math.pow(Math.cos(angle), 2) / (a * a)) + (Math.pow(Math.sin(angle), 2) / (b * b)));
+        // For the center node, increase the offset slightly so the arrow lands further out
+        if (end.isCenter) {
+            t = t * 1.15; // increase factor as needed for a better fit
+        }
+
+        adjustedEnd = {
+            x: end.x - Math.cos(angle) * t,
+            y: end.y - Math.sin(angle) * t,
+        };
+    }
+
     return (
         <svg
             className="absolute top-0 left-0 w-full h-full pointer-events-none"
             style={{ zIndex: 0 }}
         >
+            <defs>
+                <marker
+                    id="arrowhead"
+                    markerWidth="10"
+                    markerHeight="7"
+                    refX="10"
+                    refY="3.5"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                >
+                    <polygon
+                        points="0 0, 10 3.5, 0 7"
+                        fill={isTemp ? "#93C5FD" : "#000000"}
+                    />
+                </marker>
+            </defs>
             <line
                 x1={start.x + (panOffset?.x || 0)}
                 y1={start.y + (panOffset?.y || 0)}
-                x2={end.x + (panOffset?.x || 0)}
-                y2={end.y + (panOffset?.y || 0)}
-                stroke={isTemp ? "#93C5FD" : "#CBD5E0"}
+                x2={adjustedEnd.x + (panOffset?.x || 0)}
+                y2={adjustedEnd.y + (panOffset?.y || 0)}
+                stroke={isTemp ? "#000000" : "#000000"}
                 strokeWidth="2"
                 strokeDasharray={isTemp ? "5,5" : "none"}
+                markerEnd="url(#arrowhead)"
             />
         </svg>
     );
 };
 
-const MindMap = ({ lessonId }) => {
+const MindMap = ({ lessonId, title }) => {
     const [nodes, setNodes] = useState([]);
     const [connections, setConnections] = useState([]);
     const [selectedNode, setSelectedNode] = useState(null);
@@ -138,6 +205,15 @@ const MindMap = ({ lessonId }) => {
     useEffect(() => {
         loadMindMap();
     }, [lessonId]);
+
+    useEffect(() => {
+        if (nodes.length > 0 && nodes[0].isCenter) {
+            const updatedNodes = [{ ...nodes[0], label: title }, ...nodes.slice(1)];
+            setNodes(updatedNodes);
+            // Optionally, persist the update to the backend:
+            // saveMindMap(updatedNodes, connections);
+        }
+    }, [title]);
 
     const loadMindMap = async () => {
         if (!lessonId || !containerRef.current) return;
@@ -157,15 +233,20 @@ const MindMap = ({ lessonId }) => {
         const centerX = containerRect.width / 2;
         const centerY = containerRect.height / 2;
 
-        if (data?.mindmap) {
-            setNodes(data.mindmap.nodes || []);
+        if (data?.mindmap?.nodes?.length > 0) {
+            // Ensure the first node is the center node with the passed title
+            const updatedNodes = data.mindmap.nodes.map((node, index) => 
+                index === 0 ? { ...node, isCenter: true, x: centerX, y: centerY, label: title } : node
+            );
+            setNodes(updatedNodes);
             setConnections(data.mindmap.connections || []);
         } else {
             const centerNode = {
                 id: '1',
-                label: 'Main Topic',
+                label: title,
                 x: centerX,
                 y: centerY,
+                isCenter: true,
             };
             setNodes([centerNode]);
             saveMindMap([centerNode], []);
@@ -190,9 +271,14 @@ const MindMap = ({ lessonId }) => {
 
     const handleNodeDrag = (nodeId, x, y) => {
         const containerRect = containerRef.current.getBoundingClientRect();
+        const nodeElement = document.getElementById(`node-${nodeId}`);
+        const nodeRect = nodeElement.getBoundingClientRect();
+        const halfNodeWidth = nodeRect.width / 2;
+        const halfNodeHeight = nodeRect.height / 2;
         
-        const relativeX = Math.max(0, Math.min(x, containerRect.width));
-        const relativeY = Math.max(0, Math.min(y, containerRect.height));
+        // Constrain x and y to keep the node fully within the container
+        const relativeX = Math.max(halfNodeWidth, Math.min(x, containerRect.width - halfNodeWidth));
+        const relativeY = Math.max(halfNodeHeight, Math.min(y, containerRect.height - halfNodeHeight));
 
         setNodes(nodes.map(node =>
             node.id === nodeId ? { ...node, x: relativeX, y: relativeY } : node
@@ -289,6 +375,21 @@ const MindMap = ({ lessonId }) => {
         }
     };
 
+    const deleteNode = (nodeId) => {
+        const updatedNodes = nodes.filter(node => node.id !== nodeId);
+        const updatedConnections = connections.filter(
+            conn => conn.start !== nodeId && conn.end !== nodeId
+        );
+        
+        setNodes(updatedNodes);
+        setConnections(updatedConnections);
+        saveMindMap(updatedNodes, updatedConnections);
+        
+        if (selectedNode === nodeId) {
+            setSelectedNode(null);
+        }
+    };
+
     useEffect(() => {
         const handleResize = () => {
             loadMindMap();
@@ -371,25 +472,31 @@ const MindMap = ({ lessonId }) => {
                 />
             )}
 
-            {nodes.map(node => (
-                <Node
-                    key={node.id}
-                    node={{
-                        ...node,
-                        onLabelChange: (label) => handleLabelChange(node.id, label),
-                        onEditComplete: () => handleEditComplete(node.id),
-                    }}
-                    selected={selectedNode === node.id}
-                    onDrag={handleNodeDrag}
-                    onDragEnd={handleNodeDragEnd}
-                    onClick={handleNodeClick}
-                    onDoubleClick={handleNodeDoubleClick}
-                    onConnectionStart={handleConnectionStart}
-                    onConnectionEnd={handleConnectionEnd}
-                    isConnecting={isConnecting}
-                    panOffset={panOffset}
-                />
-            ))}
+            {nodes.map(node => {
+                // Always override the label for the center node with the passed title
+                const displayNode = node.isCenter ? { ...node, label: title } : node;
+                return (
+                    <Node
+                        key={node.id}
+                        node={{
+                            ...displayNode,
+                            onLabelChange: (label) => handleLabelChange(node.id, label),
+                            onEditComplete: () => handleEditComplete(node.id),
+                        }}
+                        selected={selectedNode === node.id}
+                        onDrag={handleNodeDrag}
+                        onDragEnd={handleNodeDragEnd}
+                        onClick={handleNodeClick}
+                        onDoubleClick={handleNodeDoubleClick}
+                        onConnectionStart={handleConnectionStart}
+                        onConnectionEnd={handleConnectionEnd}
+                        isConnecting={isConnecting}
+                        panOffset={panOffset}
+                        onDelete={() => deleteNode(node.id)}
+                        className="z-0"
+                    />
+                );
+            })}
 
             <div className="absolute bottom-4 right-4 flex gap-2 z-50">
                 <button
@@ -397,7 +504,7 @@ const MindMap = ({ lessonId }) => {
                         e.stopPropagation();
                         addNode();
                     }}
-                    className="border border-gray-300 px-4 py-2 text-sm rounded-lg shadow-lg hover:border-gray-600 absolute bottom-14 right-4" 
+                    className="border w-full border-gray-300 px-4 py-2 text-sm rounded-lg shadow-lg hover:border-gray-600 absolute bottom-14 right-4" 
                 >
                     Add Node
                 </button>
