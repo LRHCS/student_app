@@ -46,7 +46,7 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
                 {exams.map((item) => (
                     <div
                         key={`exam-${item.id}`}
-                        className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-100"
+                        className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-900"
                         onClick={() => window.location.href = `/exam/${item.id}`}
                     >
                         <PiExam className="text-xl" />
@@ -62,15 +62,29 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
                             <MdOutlineAssignment className="text-xl" />
                             <span>{item.title}</span>
                         </div>
-                        <select
-                            value={item.status || 0}
-                            onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
-                            className={`text-xs p-1 rounded ${getStatusText(item.status).color}`}
-                        >
-                            <option className="bg-gray-200" value={0}>Not Started</option>
-                            <option className="bg-yellow-200" value={1}>In Progress</option>
-                            <option className="bg-green-200" value={2}>Completed</option>
-                        </select>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => updateAssignmentStatus(item.id, 0)}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
+                                    ${item.status === 0 ? 'bg-gray-200 border-gray-400' : 'border-gray-200'}`}
+                            >
+                                🔴
+                            </button>
+                            <button
+                                onClick={() => updateAssignmentStatus(item.id, 1)}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
+                                    ${item.status === 1 ? 'bg-yellow-200 border-yellow-400' : 'border-gray-200'}`}
+                            >
+                                🟡
+                            </button>
+                            <button
+                                onClick={() => updateAssignmentStatus(item.id, 2)}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
+                                    ${item.status === 2 ? 'bg-green-200 border-green-400' : 'border-gray-200'}`}
+                            >
+                                ✅
+                            </button>
+                        </div>
                     </div>
                 ))}
                 {!exams.length && !assignments.length && (
@@ -84,14 +98,14 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
 // Add this new component for the status indicator
 const StatusIndicator = ({ status, isMobile }) => {
     const statusColors = {
-        0: 'bg-gray-200',
+        0: 'bg-gray-500',
         1: 'bg-yellow-200',
         2: 'bg-green-200'
     };
 
     if (isMobile) {
         return (
-            <div className={`w-2 h-2 rounded-full ${statusColors[status || 0]}`} />
+            <div className={`w-3 h-3 rounded-full ${statusColors[status || 0]}`} />
         );
     }
 
@@ -121,12 +135,94 @@ const Calendar = () => {
     const [newExam, setNewExam] = useState({ title: "", date: "", topicId: "" });
     const [newAssignment, setNewAssignment] = useState({ title: "", date: "", topicId: "" });
 
+    // Helper function to initiate the drag event with item data.
+    const handleDragStart = (e, item, type) => {
+        e.dataTransfer.setData("application/json", JSON.stringify({ id: item.id, type }));
+    };
+
+    // Allow drop by preventing default behavior.
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+
+    // Handle drop event: update the item's date in the backend and local state.
+    const handleDrop = async (e, dropDate) => {
+        e.preventDefault();
+        const data = e.dataTransfer.getData("application/json");
+        if (data) {
+            const { id, type } = JSON.parse(data);
+            if (type === "exam") {
+                const { error, data: updatedExam } = await supabase
+                    .from("Exams")
+                    .update({ date: dropDate })
+                    .eq("id", id)
+                    .select()
+                    .single();
+                if (!error && updatedExam) {
+                    setExams((prev) => prev.map((exam) => (exam.id === id ? updatedExam : exam)));
+                } else {
+                    console.error("Error updating exam date:", error);
+                }
+            } else if (type === "assignment") {
+                const { error, data: updatedAssignment } = await supabase
+                    .from("Assignments")
+                    .update({ date: dropDate })
+                    .eq("id", id)
+                    .select()
+                    .single();
+                if (!error && updatedAssignment) {
+                    setAssignments((prev) =>
+                        prev.map((assignment) => (assignment.id === id ? updatedAssignment : assignment))
+                    );
+                } else {
+                    console.error("Error updating assignment date:", error);
+                }
+            }
+        }
+    };
+
     // Data loading using the extracted utility function
     useEffect(() => {
         const fetchData = async () => {
             const data = await loadCalendarData();
-            setExams(data.exams);
-            setAssignments(data.assignments);
+            const now = new Date();
+            now.setHours(0, 0, 0, 0); // Set to start of day
+
+            // Mark past exams but keep them in the list
+            const allExams = data.exams.map(exam => {
+                const examDate = new Date(exam.date);
+                examDate.setHours(0, 0, 0, 0);
+                return {
+                    ...exam,
+                    isPast: examDate < now // Today is not considered past
+                };
+            });
+
+            // For assignments, update status to completed if past due but keep them
+            const allAssignments = [];
+            for (const assignment of data.assignments) {
+                const assignmentDate = new Date(assignment.date);
+                assignmentDate.setHours(0, 0, 0, 0);
+                
+                if (assignmentDate < now) { // Today is not considered past
+                    if (assignment.status !== 2) {
+                        const { error } = await supabase
+                            .from("Assignments")
+                            .update({ status: 2 })
+                            .eq("id", assignment.id);
+                        if (error) {
+                            console.error("Error updating assignment status:", error);
+                        }
+                    }
+                    // Include past assignments with isPast flag
+                    allAssignments.push({ ...assignment, status: 2, isPast: true });
+                } else {
+                    allAssignments.push({ ...assignment, isPast: false });
+                }
+            }
+
+            setExams(allExams);
+            setAssignments(allAssignments);
             setCourses(data.courses);
             setTopics(data.topics);
         };
@@ -389,8 +485,10 @@ const Calendar = () => {
                     return (
                         <div
                             key={day}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, date)}
                             onClick={() => {
-                                const isMobile = window.innerWidth < 640;
+                                const isMobile = window.innerWidth < 1020;
                                 handleDayClick(date, dayExams, isMobile);
                             }}
                             className={`border p-2 relative group cursor-pointer
@@ -403,7 +501,7 @@ const Calendar = () => {
                                     e.stopPropagation();
                                     handleAddClick(date);
                                 }}
-                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-full p-1"
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 rounded-full p-1"
                             >
                                 <IoMdAdd className="text-gray-600" />
                             </button>
@@ -413,8 +511,12 @@ const Calendar = () => {
                                     {new Date(currentDate.getFullYear(), currentDate.getMonth(), day + 1).getDate()}
                                 </span>
                                 
-                                {/* Content for mobile and small screens */}
-                                <div className="lg:hidden mt-1 flex flex-wrap gap-1 justify-center">
+                                {/* Content for mobile and medium screens */}
+                                <div className="xl:hidden mt-1 flex flex-wrap gap-1 justify-center">
+                                    {dayExams.length > 0 && (
+                                        <div className="w-3 h-3 rounded-full bg-blue-400" 
+                                             title={`${dayExams.length} exam${dayExams.length > 1 ? 's' : ''}`} />
+                                    )}
                                     {dayAssignments.map((item) => (
                                         <StatusIndicator 
                                             key={item.id} 
@@ -425,12 +527,17 @@ const Calendar = () => {
                                 </div>
 
                                 {/* Full content for larger screens */}
-                                <div className="hidden lg:block w-full">
+                                <div className="hidden xl:block w-full">
                                     {dayExams.map((item) => (
                                         <div 
-                                            key={`exam-${item.id}`} 
+                                            key={`exam-${item.id}`}
+                                            draggable={true}
+                                            onDragStart={(e) => handleDragStart(e, item, "exam")}
                                             onClick={(e) => handleExamClick(e, item.id)}
-                                            className="flex items-center justify-between mt-1 p-1 text-sm border rounded-lg hover:bg-gray-100 cursor-pointer"
+                                            className={`flex items-center justify-between mt-1 p-1 text-sm border rounded-lg 
+                                                ${item.isPast 
+                                                    ? 'bg-gray-100 text-gray-500 border-none' 
+                                                    : 'hover:bg-gray-300'} cursor-pointer border-none`}
                                             onMouseEnter={() => setHoveredExamId(item.id)}
                                             onMouseLeave={() => setHoveredExamId(null)}
                                         >
@@ -438,65 +545,38 @@ const Calendar = () => {
                                                 <PiExam className="text-xl" />
                                                 {item.title}
                                             </div>
-                                            <div className={`flex gap-2 transition-opacity ${hoveredExamId === item.id ? 'opacity-100' : 'opacity-0'}`}>
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleEditExam(item);
-                                                    }}
-                                                    className="text-gray-500 hover:text-gray-700"
-                                                >
-                                                    <MdEdit size={16} />
-                                                </button>
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteExam(item.id);
-                                                    }}
-                                                    className="text-red-500 hover:text-red-700"
-                                                >
-                                                    <MdDelete size={16} />
-                                                </button>
-                                            </div>
                                         </div>
                                     ))}
                                     {dayAssignments.map((item) => (
                                         <div 
-                                            key={`assignment-${item.id}`} 
-                                            className="flex flex-col gap-1 mt-1 p-1 text-sm border rounded-lg"
+                                            key={`assignment-${item.id}`}
+                                            draggable={true}
+                                            onDragStart={(e) => handleDragStart(e, item, "assignment")}
+                                            className={`flex flex-col gap-1 mt-1 p-1 text-sm border rounded-lg
+                                                ${item.isPast 
+                                                    ? 'bg-gray-100 text-gray-500 border-none' 
+                                                    : 'hover:bg-gray-300'} cursor-pointer border-none`}
                                             onMouseEnter={() => setHoveredAssignmentId(item.id)}
                                             onMouseLeave={() => setHoveredAssignmentId(null)}
                                             onClick={(e) => e.stopPropagation()}
                                         >
-                                            <div className="flex items-center justify-between">
+                                            <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2">
                                                     <MdOutlineAssignment className="text-xl" />
                                                     {item.title}
                                                 </div>
-                                                <div className={`flex gap-2 transition-opacity ${hoveredAssignmentId === item.id ? 'opacity-100' : 'opacity-0'}`}>
-                                                    <button 
-                                                        onClick={() => handleEditAssignment(item)}
-                                                        className="text-gray-500 hover:text-gray-700"
+                                                <div className="flex items-center gap-2">
+                                                    <select
+                                                        value={item.status || 0}
+                                                        onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
+                                                        className={`text-xs p-1 rounded ${getStatusText(item.status).color}`}
                                                     >
-                                                        <MdEdit size={16} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDeleteAssignment(item.id)}
-                                                        className="text-red-500 hover:text-red-700"
-                                                    >
-                                                        <MdDelete size={16} />
-                                                    </button>
+                                                        <option className="bg-gray-200" value={0}>Not Started</option>
+                                                        <option className="bg-yellow-200" value={1}>In Progress</option>
+                                                        <option className="bg-green-200" value={2}>Completed</option>
+                                                    </select>
                                                 </div>
                                             </div>
-                                            <select
-                                                value={item.status || 0}
-                                                onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
-                                                className={`w-24 text-xs p-1 rounded ${getStatusText(item.status).color}`}
-                                            >
-                                                <option className="bg-gray-200" value={0}>Not Started</option>
-                                                <option className="bg-yellow-200" value={1}>In Progress</option>
-                                                <option className="bg-green-200" value={2}>Completed</option>
-                                            </select>
                                         </div>
                                     ))}
                                 </div>
@@ -507,7 +587,7 @@ const Calendar = () => {
             </div>
 
             {/* Mobile view modal */}
-            {selectedDate && window.innerWidth < 640 && (
+            {selectedDate && window.innerWidth < 1020 && (
                 <DayContentModal
                     date={selectedDate}
                     exams={exams.filter(item => item.date.startsWith(selectedDate))}

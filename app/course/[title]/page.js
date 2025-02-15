@@ -58,15 +58,19 @@ export default function Page({ params }) {
     // Once topics are fetched, load Exams and Assignments for the course.
     useEffect(() => {
         if (topics.length === 0) return;
-
+        
         const topicIds = topics.map((topic) => topic.id);
 
         const fetchExamsAndLessons = async () => {
-            // Fetch exams
+            // Modify the exam query to include today's exams
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to start of day
+            
             const { data: examsData, error: examsError } = await supabase
                 .from("Exams")
                 .select("*")
-                .in("topicId", topicIds);
+                .in("topicId", topicIds)
+                .gte("date", today.toISOString());
             
             if (examsError) {
                 console.error("Error fetching exams:", examsError);
@@ -75,7 +79,7 @@ export default function Page({ params }) {
             
             setExams(examsData);
 
-            // Fetch lessons for each exam
+            // For each upcoming exam, fetch its lessons (lessons for past exams are skipped because the exam is filtered out)
             const lessonsMap = {};
             for (const exam of examsData) {
                 const { data: lessonData, error: lessonError } = await supabase
@@ -97,12 +101,37 @@ export default function Page({ params }) {
             const { data: assignmentsData, error: assignmentsError } = await supabase
                 .from("Assignments")
                 .select("*")
-                .in("topicId", topicIds); // Adjust field name if needed (here it is assumed as topic_id)
+                .in("topicId", topicIds);
             if (assignmentsError) {
                 console.error("Error fetching assignments:", assignmentsError);
                 return;
             }
-            setAssignments(assignmentsData);
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to start of day
+            
+            const upcomingAssignments = [];
+            for (const assignment of assignmentsData) {
+                const assignmentDate = new Date(assignment.date);
+                assignmentDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
+                
+                if (assignmentDate < today) {
+                    // For past assignments, update the status to finished (2) if not already set
+                    if (assignment.status !== 2) {
+                        const { error: updateError } = await supabase
+                            .from("Assignments")
+                            .update({ status: 2 })
+                            .eq("id", assignment.id);
+                        if (updateError) {
+                            console.error("Error updating assignment status:", updateError);
+                        }
+                    }
+                    // Do not include past assignments in the list
+                } else {
+                    upcomingAssignments.push(assignment);
+                }
+            }
+            setAssignments(upcomingAssignments);
         };
 
         fetchExamsAndLessons();
@@ -313,6 +342,43 @@ export default function Page({ params }) {
         });
     };
 
+    // Add these new functions after updateLessonStatus
+    const updateExamDate = async (examId, newDate) => {
+        const { error } = await supabase
+            .from("Exams")
+            .update({ date: newDate })
+            .eq("id", examId);
+
+        if (error) {
+            console.error("Error updating exam date:", error);
+            return;
+        }
+
+        setExams(exams.map(exam => 
+            exam.id === examId 
+                ? { ...exam, date: newDate }
+                : exam
+        ));
+    };
+
+    const updateAssignmentDate = async (assignmentId, newDate) => {
+        const { error } = await supabase
+            .from("Assignments")
+            .update({ date: newDate })
+            .eq("id", assignmentId);
+
+        if (error) {
+            console.error("Error updating assignment date:", error);
+            return;
+        }
+
+        setAssignments(assignments.map(assignment => 
+            assignment.id === assignmentId 
+                ? { ...assignment, date: newDate }
+                : assignment
+        ));
+    };
+
     return (
         <div className="p-4 relative">
             <ProfileLink />
@@ -369,10 +435,16 @@ export default function Page({ params }) {
                         <ul className="mb-8">
                             {exams.map((exam) => (
                                 <li key={exam.id} className="p-4 border border-gray-300 rounded mb-4">
-                                    <div className="mb-2">
+                                    <div className="mb-2 flex items-center justify-between">
                                         <Link href={`/exam/${exam.id}`} className="hover:underline font-semibold">
-                                            {exam.title} – {exam.date}
+                                            {exam.title}
                                         </Link>
+                                        <input
+                                            type="date"
+                                            value={exam.date}
+                                            onChange={(e) => updateExamDate(exam.id, e.target.value)}
+                                            className="p-1 border rounded text-sm"
+                                        />
                                     </div>
                                     
                                     {/* Notes/Lessons section */}
@@ -438,8 +510,14 @@ export default function Page({ params }) {
                             {assignments.map((assignment) => (
                                 <li key={assignment.id} className="p-2 border rounded mb-2 border-gray-300">
                                     <div className="flex items-center justify-between">
-                                            {assignment.title} – {assignment.date}
+                                        <span>{assignment.title}</span>
                                         <div className="flex items-center gap-2">
+                                            <input
+                                                type="date"
+                                                value={assignment.date}
+                                                onChange={(e) => updateAssignmentDate(assignment.id, e.target.value)}
+                                                className="p-1 border rounded text-sm"
+                                            />
                                             <select
                                                 value={assignment.status || 0}
                                                 onChange={(e) => updateAssignmentStatus(assignment.id, Number(e.target.value))}
@@ -449,7 +527,6 @@ export default function Page({ params }) {
                                                 <option className="bg-yellow-200" value={1}>In Progress</option>
                                                 <option className="bg-green-200" value={2}>Completed</option>
                                             </select>
-
                                         </div>
                                     </div>
                                 </li>

@@ -17,6 +17,10 @@ const DrawingLayer = ({ isActive, lessonId }) => {
     const [currentStroke, setCurrentStroke] = useState(null);
     const [tool, setTool] = useState('brush');
     const [eraserSize, setEraserSize] = useState(20);
+    const [isErasing, setIsErasing] = useState(false);
+    const [paths, setPaths] = useState([]);
+    const currentPath = useRef([]);
+    const [lineWidth, setLineWidth] = useState(2);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -153,38 +157,26 @@ const DrawingLayer = ({ isActive, lessonId }) => {
             const dpr = window.devicePixelRatio || 1;
             const eraserRadius = eraserSize * dpr;
 
-            // Process each stroke looking for points to remove
-            const updatedDrawings = [];
-            drawings.forEach(stroke => {
-                if (!stroke.points || stroke.points.length < 2) return;
-
-                let currentSegment = [];
-                stroke.points.forEach((p, index) => {
+            // OneNote-style erasing: Remove entire strokes that intersect with eraser
+            const updatedDrawings = drawings.filter(stroke => {
+                // Check if any point in the stroke intersects with the eraser
+                const intersects = stroke.points.some(p => {
                     const dx = p.x - point.x;
                     const dy = p.y - point.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    if (distance <= eraserRadius) {
-                        if (currentSegment.length >= 2) {
-                            updatedDrawings.push({ ...stroke, points: [...currentSegment] });
-                        }
-                        currentSegment = [];
-                    } else {
-                        currentSegment.push(p);
-                        if (index === stroke.points.length - 1 && currentSegment.length >= 2) {
-                            updatedDrawings.push({ ...stroke, points: [...currentSegment] });
-                        }
-                    }
+                    return distance <= eraserRadius;
                 });
+                // Keep the stroke only if it doesn't intersect
+                return !intersects;
             });
 
             setDrawings(updatedDrawings);
             redrawCanvas(updatedDrawings);
             saveDrawings(updatedDrawings);
             lastPoint.current = point;
-            return; // Exit early so normal drawing update doesn't override
+            return;
         } else {
-            // Normal drawing functionality
+            // Normal drawing functionality - keep as is
             context.beginPath();
             context.strokeStyle = color;
             context.lineWidth = brushSize;
@@ -192,7 +184,6 @@ const DrawingLayer = ({ isActive, lessonId }) => {
             context.lineTo(point.x, point.y);
             context.stroke();
             
-            // Update the current stroke
             const newDrawings = [...drawings];
             if (newDrawings.length > 0) {
                 newDrawings[newDrawings.length - 1].points.push(point);

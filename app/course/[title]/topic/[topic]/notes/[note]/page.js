@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragProvider } from '@/app/contexts/DragContext';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
 import { supabase } from "@/app/utils/client";
@@ -22,79 +22,18 @@ import {
     MdHorizontalRule,
     MdVideoLibrary,
     MdTextFields,
+    MdKeyboardArrowRight,
     MdEdit
 } from 'react-icons/md';
 import BlockRenderer from './BlockRenderer';
 import DrawingLayer from '@/app/components/DrawingLayer';
 import MindMap from '@/app/components/MindMap';
+import { isValidImageUrl } from '@/app/utils/imageUtils';
+import { useDrag } from '@/app/contexts/DragContext';
 
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
     () => import('@uiw/react-codemirror').then(mod => mod.default),
-    { ssr: false }
-);
-
-// First, remove the existing dynamic imports for drag and drop components
-// and replace them with this new implementation:
-
-const DragDropContextWrapper = dynamic(
-    () => import('react-beautiful-dnd').then(mod => {
-        const { DragDropContext } = mod;
-        return function DragDropContextComponent({ children, ...props }) {
-            return <DragDropContext {...props}>{children}</DragDropContext>;
-        };
-    }),
-    { ssr: false }
-);
-
-const DroppableWrapper = dynamic(
-    () => import('react-beautiful-dnd').then(mod => {
-        const { Droppable } = mod;
-        return function DroppableComponent({ children, ...props }) {
-            return (
-                <Droppable 
-                    {...props} 
-                    isDropDisabled={false}
-                    isCombineEnabled={false}
-                    ignoreContainerClipping={false}
-                    renderClone={null}
-                >
-                    {children}
-                </Droppable>
-            );
-        };
-    }),
-    { ssr: false }
-);
-
-const DraggableWrapper = dynamic(
-    () => import('react-beautiful-dnd').then(mod => {
-        const { Draggable } = mod;
-        return function DraggableComponent({ children, draggableId, index }) {
-            return (
-                <Draggable 
-                    draggableId={draggableId}
-                    index={index}
-                >
-                    {(provided, snapshot) => {
-                        return (
-                            <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                data-block-index={index}
-                                className={`group relative mb-2 ${
-                                    snapshot.isDragging ? 'opacity-50' : ''
-                                }`}
-                            >
-                                {children(provided, snapshot)}
-                            </div>
-                        );
-                    }}
-                </Draggable>
-            );
-        };
-    }),
     { ssr: false }
 );
 
@@ -111,6 +50,7 @@ const BLOCK_TYPES = {
     TABLE: 'table',
     CALLOUT: 'callout',
     DIVIDER: 'divider',
+    TOGGLE: 'toggle',
     EMBED: 'embed'
 };
 
@@ -119,6 +59,7 @@ const BLOCK_OPTIONS = [
     { type: 'heading', icon: MdTitle, label: 'Heading 1' },
     { type: 'heading', icon: MdTitle, label: 'Heading 2', properties: { level: 'h2' } },
     { type: 'heading', icon: MdTitle, label: 'Heading 3', properties: { level: 'h3' } },
+    { type: 'toggle', icon: MdKeyboardArrowRight, label: 'Toggle List' },
     { type: 'bullet-list', icon: MdFormatListBulleted, label: 'Bullet List' },
     { type: 'numbered-list', icon: MdFormatListNumbered, label: 'Numbered List' },
     { type: 'checklist', icon: MdFormatListBulleted, label: 'Checklist' },
@@ -132,13 +73,25 @@ const BLOCK_OPTIONS = [
     { type: 'link', icon: MdLink, label: 'Link' },
 ];
 
-export default function NotePage({ params }) {
+function NotePage({ params }) {
     const pathname = usePathname();
     const [blocks, setBlocks] = useState([]);
     const [showBlockMenu, setShowBlockMenu] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
     const [title, setTitle] = useState("");
     const [isDrawingMode, setIsDrawingMode] = useState(false);
+    const [pendingImageUrl, setPendingImageUrl] = useState(null);
+    const [pasteIndex, setPasteIndex] = useState(null);
+    const [isNoteLoaded, setIsNoteLoaded] = useState(false);
+    const { 
+        draggedBlock, 
+        setDropTarget, 
+        setDropPosition, 
+        dropTarget 
+    } = useDrag();
+    const [showMindMap, setShowMindMap] = useState(true);
+    const [isSmallScreen, setIsSmallScreen] = useState(false);
+    const mindMapRef = useRef(null);
 
     const courseTitle = decodeURIComponent(pathname.split('/')[2]);
     const topicTitle = decodeURIComponent(pathname.split('/')[4]);
@@ -153,8 +106,29 @@ export default function NotePage({ params }) {
         fetchTitle();
     }, [lessonId]);
 
+    useEffect(() => {
+        console.log('Droppable mounted');
+        return () => console.log('Droppable unmounted');
+    }, []);
+
+    useEffect(() => {
+        const checkScreenSize = () => {
+            setIsSmallScreen(window.innerWidth < 1200);
+        };
+
+        // Initial check
+        checkScreenSize();
+
+        // Add event listener
+        window.addEventListener('resize', checkScreenSize);
+
+        // Cleanup
+        return () => window.removeEventListener('resize', checkScreenSize);
+    }, []);
+
     const fetchNote = async () => {
         if (!lessonId) return;
+        setIsNoteLoaded(false);
 
         const { data, error } = await supabase
             .from('Lessons')
@@ -165,23 +139,26 @@ export default function NotePage({ params }) {
         if (error) {
             console.error('Error fetching lesson:', error.message);
             setBlocks([createDefaultBlock()]);
+            setIsNoteLoaded(true);
         } else if (data) {
             try {
                 const parsedContent = JSON.parse(data.content || '[]');
                 const validBlocks = parsedContent.map(block => ({
                     ...block,
-                    id: String(block.id)
+                    id: block.id || uuidv4()
                 }));
                 setBlocks(validBlocks.length ? validBlocks : [createDefaultBlock()]);
+                setTimeout(() => setIsNoteLoaded(true), 0);
             } catch (e) {
                 console.error('Error parsing content:', e);
                 setBlocks([createDefaultBlock()]);
+                setIsNoteLoaded(true);
             }
         }
     };
 
     const createDefaultBlock = () => ({
-        id: String(uuidv4()),
+        id: uuidv4(),
         type: BLOCK_TYPES.TEXT,
         content: '',
         properties: {}
@@ -210,7 +187,7 @@ export default function NotePage({ params }) {
 
     const addBlock = (type, index) => {
         const newBlock = {
-            id: String(uuidv4()),
+            id: uuidv4(),
             type,
             content: '',
             properties: {}
@@ -225,7 +202,29 @@ export default function NotePage({ params }) {
         setShowBlockMenu(false);
     };
 
-    const removeBlock = (index) => {
+    const removeBlock = async (index) => {
+        const removedBlock = blocks[index];
+
+        // If the block is an image and its URL indicates a file from the "screenshot" bucket,
+        // extract the file path and remove it from Supabase storage.
+        if (
+            removedBlock.type === 'image' &&
+            removedBlock.content &&
+            removedBlock.content.includes('storage/v1/object/public/screenshot/')
+        ) {
+            const parts = removedBlock.content.split('storage/v1/object/public/screenshot/');
+            if (parts.length > 1) {
+                // Remove any potential query parameters from the file path.
+                const filePath = parts[1].split('?')[0];
+                const { error } = await supabase.storage
+                    .from('screenshot')
+                    .remove([filePath]);
+                if (error) {
+                    console.error("Error deleting screenshot from Supabase:", error.message);
+                }
+            }
+        }
+
         if (blocks.length === 1) {
             setBlocks([createDefaultBlock()]);
             return;
@@ -264,11 +263,39 @@ export default function NotePage({ params }) {
         return data?.title || 'Untitled';
     };
 
-    const handleEnterPress = (index, newBlockData = null) => {
+    const handleEnterPress = (index) => {
+        const currentBlock = blocks[index];
+
+        // For list items, if the current block is empty
+        if (['bullet-list', 'numbered-list', 'checklist'].includes(currentBlock.type) &&
+            currentBlock.content.trim() === '') {
+            if (index === blocks.length - 1) {
+                // Remove the empty last item and then add a new empty list item at the end
+                const updatedBlocks = blocks.filter((_, i) => i !== index);
+                // Append a new block of the same list type with preserved indent
+                updatedBlocks.push({
+                    ...createDefaultBlock(),
+                    type: currentBlock.type,
+                    properties: { ...currentBlock.properties }
+                });
+                setBlocks(updatedBlocks);
+                saveNote(updatedBlocks);
+                return;
+            }
+        }
+
+        // Normal behavior: insert a new block immediately below with same list style if applicable
         const newBlock = {
-            id: String(uuidv4()),
-            ...(newBlockData || createDefaultBlock()),
+            ...createDefaultBlock(),
+            ...((['bullet-list', 'numbered-list', 'checklist'].includes(currentBlock.type)) && {
+                type: currentBlock.type,
+                properties: {
+                    ...currentBlock.properties,
+                    indent: currentBlock.properties?.indent || 0
+                }
+            })
         };
+
         const updatedBlocks = [
             ...blocks.slice(0, index + 1),
             newBlock,
@@ -279,19 +306,68 @@ export default function NotePage({ params }) {
     };
 
     const handleBackspacePress = (index) => {
-        if (index === 0) return;
-
-        const updatedBlocks = blocks.filter((_, i) => i !== index);
-        const previousBlock = updatedBlocks[index - 1];
         const currentBlock = blocks[index];
+        const isListType = ['bullet-list', 'numbered-list', 'checklist'].includes(currentBlock.type);
 
-        // Merge content with previous block if applicable
-        if (previousBlock && currentBlock) {
-            previousBlock.content += currentBlock.content;
+        // If it's an indented list item, reduce its indent
+        if (isListType && currentBlock.properties?.indent > 0) {
+            const newProperties = {
+                ...currentBlock.properties,
+                indent: currentBlock.properties.indent - 1
+            };
+            handleBlockChange(currentBlock.id, currentBlock.content, newProperties);
+            return;
         }
 
-        setBlocks(updatedBlocks);
-        saveNote(updatedBlocks);
+        // For list items:
+        if (isListType && currentBlock.content.trim() === '') {
+            // Remove the block and keep focus in the area
+            const updatedBlocks = blocks.filter((_, i) => i !== index);
+            // If we're removing the last block, add a new empty text block
+            if (index === blocks.length - 1 && updatedBlocks.length === 0) {
+                updatedBlocks.push(createDefaultBlock());
+            }
+            setBlocks(updatedBlocks);
+            saveNote(updatedBlocks);
+            // Focus on the new last line
+            setTimeout(() => {
+                const newLastIndex = updatedBlocks.length - 1;
+                const lastBlock = document.querySelector(`[data-block-index="${newLastIndex}"]`);
+                if (lastBlock) {
+                    const input = lastBlock.querySelector('input[type="text"], textarea');
+                    if (input) {
+                        input.focus();
+                        if (input.setSelectionRange) {
+                            const length = input.value.length;
+                            input.setSelectionRange(length, length);
+                        }
+                    }
+                }
+            }, 0);
+            return;
+        }
+
+        // For non-list blocks or non-empty content
+        if (currentBlock.content === '' && blocks.length > 1) {
+            const updatedBlocks = blocks.filter((_, i) => i !== index);
+            setBlocks(updatedBlocks);
+            saveNote(updatedBlocks);
+            // Focus on the new last line
+            setTimeout(() => {
+                const newLastIndex = updatedBlocks.length - 1;
+                const lastBlock = document.querySelector(`[data-block-index="${newLastIndex}"]`);
+                if (lastBlock) {
+                    const input = lastBlock.querySelector('input[type="text"], textarea');
+                    if (input) {
+                        input.focus();
+                        if (input.setSelectionRange) {
+                            const length = input.value.length;
+                            input.setSelectionRange(length, length);
+                        }
+                    }
+                }
+            }, 0);
+        }
     };
 
     const handleSlashCommand = (index) => {
@@ -381,21 +457,35 @@ export default function NotePage({ params }) {
         }, 0);
     };
 
-    // Modify the handleContainerClick function to handle special cases
+    // Update the handleContainerClick function
     const handleContainerClick = (e) => {
         // Only proceed if clicking directly on the container (not on blocks)
-        if (e.target === e.currentTarget || e.target.className.includes('h-screen')) {
+        if (e.target === e.currentTarget || 
+            (e.target.classList && e.target.classList.contains('note-bottom-area'))) {
+            
+            // If the last block is empty, focus it
             const lastBlock = blocks[blocks.length - 1];
-
-            // Check if the last block is a special type that should not automatically focus
-            if (lastBlock && (lastBlock.type === 'embed' || lastBlock.type === 'image')) {
-                // Create a new text block at the end
-                const newBlock = { type: 'text', content: '', properties: {} };
-                setBlocks(prev => [...prev, newBlock]);
-            } else {
-                // Focus the last block if it's not a special type
+            if (lastBlock && lastBlock.content.trim() === '') {
                 focusLastBlock();
+                return;
             }
+
+            // Otherwise create a new block
+            const newBlock = createDefaultBlock();
+            const updatedBlocks = [...blocks, newBlock];
+            setBlocks(updatedBlocks);
+            saveNote(updatedBlocks);
+            
+            // Focus the new block after it's created
+            setTimeout(() => {
+                const lastBlockElement = document.querySelector(`[data-block-index="${updatedBlocks.length - 1}"]`);
+                if (lastBlockElement) {
+                    const input = lastBlockElement.querySelector('input[type="text"], textarea');
+                    if (input) {
+                        input.focus();
+                    }
+                }
+            }, 0);
         }
     };
 
@@ -413,8 +503,139 @@ export default function NotePage({ params }) {
         }
     };
 
+    const handleContainerPaste = async (e) => {
+        // Get the index where we should insert the new block
+        const targetElement = e.target;
+        const blockElement = targetElement.closest('[data-block-index]');
+        const index = blockElement ? parseInt(blockElement.getAttribute('data-block-index')) : blocks.length;
+        
+        // Handle image files from clipboard
+        if (e.clipboardData.files.length > 0) {
+            const file = e.clipboardData.files[0];
+            if (file.type.startsWith('image/')) {
+                e.preventDefault();
+                await handleImageUpload(file, index);
+                return;
+            }
+        }
+
+        // Handle text paste
+        const text = e.clipboardData.getData('text');
+        if (text) {
+            // If it looks like an image URL, ask for confirmation
+            if (await isValidImageUrl(text)) {
+                e.preventDefault();
+                setPendingImageUrl(text);
+                setPasteIndex(index);
+                return;
+            }
+        }
+    };
+
+    const handleImageUpload = async (file, index) => {
+        try {
+            if (!file) return;
+
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user?.id) {
+                throw new Error('Please sign in to upload images');
+            }
+
+            // Generate unique file path
+            const fileExt = file.name.split(".").pop();
+            const fileName = `${Date.now()}.${fileExt}`;
+            const filePath = `${user.id}/${fileName}`;
+
+            // Upload file to Supabase
+            const { error: uploadError } = await supabase.storage
+                .from("screenshot")
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            // Get public URL
+            const { data: urlData } = supabase.storage
+                .from("screenshot")
+                .getPublicUrl(filePath);
+
+            // Create new image block
+            const newBlock = {
+                id: uuidv4(),
+                type: 'image',
+                content: urlData.publicUrl,
+                properties: {}
+            };
+
+            // Insert the new block at the specified index
+            const updatedBlocks = [
+                ...blocks.slice(0, index + 1),
+                newBlock,
+                ...blocks.slice(index + 1)
+            ];
+            setBlocks(updatedBlocks);
+            saveNote(updatedBlocks);
+
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            alert(error.message || 'Error uploading image');
+        }
+    };
+
+    const handleMoveBlock = (fromIndex, toIndex) => {
+        const updatedBlocks = [...blocks];
+        const [movedBlock] = updatedBlocks.splice(fromIndex, 1);
+        updatedBlocks.splice(toIndex, 0, movedBlock);
+        setBlocks(updatedBlocks);
+        saveNote(updatedBlocks);
+    };
+
+    const computeListNumber = (block, index, blocks) => {
+        if (block.type !== 'numbered-list') return undefined;
+        
+        if (index === 0 || blocks[index - 1].type !== 'numbered-list') {
+            return 1;
+        }
+        
+        let count = 1;
+        let j = index - 1;
+        while (j >= 0 && blocks[j].type === 'numbered-list') {
+            count++;
+            j--;
+        }
+        return count;
+    };
+
+    // Add debounced drawing mode toggle
+    const toggleDrawingMode = useCallback(() => {
+        // Pre-initialize drawing layer before showing
+        if (!isDrawingMode) {
+            // Force a repaint before showing drawing layer
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setIsDrawingMode(true);
+                });
+            });
+        } else {
+            setIsDrawingMode(false);
+        }
+    }, [isDrawingMode]);
+
+    // Update the toggle handler
+    const handleMindMapToggle = () => {
+        setShowMindMap(prev => {
+            const newValue = !prev;
+            if (newValue && mindMapRef.current) {
+                // Center the mindmap when showing it
+                setTimeout(() => {
+                    mindMapRef.current.centerMindMap();
+                }, 0);
+            }
+            return newValue;
+        });
+    };
+
     return (
-        <div className="min-h-screen flex flex-col bg-white">
+        <div className="flex flex-col bg-white h-screen overflow-hidden">
             <div className="sticky top-0 z-50 bg-gray-100 shadow-sm">
                 <div className="flex items-center justify-between p-4 border-b border-gray-300">
                     <div>
@@ -432,90 +653,99 @@ export default function NotePage({ params }) {
                         <span className="mx-2 text-gray-500">/</span>
                         <span className="font-bold">{title}</span>
                     </div>
-                    <button
-                        onClick={() => setIsDrawingMode(!isDrawingMode)}
-                        className={`p-2 rounded-full ${isDrawingMode ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-                        title="Toggle drawing mode"
-                    >
-                        <MdEdit className="text-xl" />
-                    </button>
+                    <div className="flex gap-2">
+                        {isSmallScreen && (
+                            <button
+                                onClick={handleMindMapToggle}
+                                className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
+                            >
+                                {showMindMap ? 'Show Note' : 'Show Mind Map'}
+                            </button>
+                        )}
+                        <button
+                            onClick={toggleDrawingMode}
+                            className={`p-2 rounded-full ${isDrawingMode ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                            title="Toggle drawing mode"
+                        >
+                            <MdEdit className="text-xl" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex flex-grow">
-                {/* Left Column: Note (including Drawing/Markdown) */}
-                <div className="w-1/2 border-r border-gray-200 overflow-y-auto z-30 bg-white">
-                    <div className="note-content-container relative  w-full">
-                        <DrawingLayer isActive={isDrawingMode} lessonId={lessonId} />
+            <div className="flex flex-1 overflow-hidden">
+                {/* Note Content */}
+                <div 
+                    className={`${
+                        isSmallScreen 
+                            ? showMindMap ? 'hidden' : 'w-full' 
+                            : 'w-1/2'
+                    } border-r border-gray-200 overflow-y-auto z-30 bg-white`}
+                >
+                    <div className="note-content-container relative w-full">
+                        {/* Pre-mount DrawingLayer but keep it hidden when inactive */}
+                        <div style={{ visibility: isDrawingMode ? 'visible' : 'hidden' }}>
+                            <DrawingLayer isActive={isDrawingMode} lessonId={lessonId} />
+                        </div>
                         
-                        <DragDropContextWrapper onDragEnd={handleDragEnd}>
-                            <DroppableWrapper 
-                                droppableId="blocks"
-                                type="DEFAULT"
-                                direction="vertical"
+                        {isNoteLoaded ? (
+                            <div 
+                                className="flex-grow p-4 max-w-4xl mx-auto w-full"
+                                onClick={handleContainerClick}
+                                onPaste={handleContainerPaste}
                             >
-                                {(provided, snapshot) => (
-                                    <div
-                                        {...provided.droppableProps}
-                                        ref={provided.innerRef}
-                                        className={`flex-grow p-4 max-w-4xl mx-auto w-full h-screen ${
-                                            snapshot.isDraggingOver ? 'bg-gray-50' : ''
-                                        }`}
+                                <div className="min-h-full relative">
+                                    {blocks.map((block, index) => (
+                                        <BlockRenderer
+                                            key={`block-${block.id || uuidv4()}`}
+                                            block={block}
+                                            index={index}
+                                            onChange={(content, properties) => 
+                                                handleBlockChange(block.id, content, properties)
+                                            }
+                                            onRemove={() => removeBlock(index)}
+                                            onEnterPress={handleEnterPress}
+                                            onBackspacePress={handleBackspacePress}
+                                            onSlashCommand={handleSlashCommand}
+                                            onTransformBlock={transformBlock}
+                                            isLastBlock={index === blocks.length - 1}
+                                            onFocusNext={focusNextBlock}
+                                            onFocusPrevious={focusPreviousBlock}
+                                            listNumber={block.type === 'numbered-list' ? computeListNumber(block, index, blocks) : undefined}
+                                            allowDelete={blocks.length > 1}
+                                            isNoteLoaded={isNoteLoaded}
+                                            onMoveBlock={handleMoveBlock}
+                                        />
+                                    ))}
+                                    {/* Add a clickable area below the last block */}
+                                    <div 
+                                        className="note-bottom-area min-h-[50vh] w-full cursor-text"
                                         onClick={handleContainerClick}
-                                    >
-                                        <div className="h-fit relative">
-                                            {blocks.map((block, index) => {
-                                                const blockId = String(block.id);
-                                                const isLastBlock = index === blocks.length - 1;
-                                                return (
-                                                    <DraggableWrapper
-                                                        key={blockId}
-                                                        draggableId={blockId}
-                                                        index={index}
-                                                    >
-                                                        {(provided, snapshot) => (
-                                                            <>
-                                                                <div
-                                                                    {...provided.dragHandleProps}
-                                                                    className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-move p-2"
-                                                                >
-                                                                    <MdDragIndicator />
-                                                                </div>
-                                                                <BlockRenderer
-                                                                    block={block}
-                                                                    onChange={(content, properties) => 
-                                                                        handleBlockChange(blockId, content, properties)
-                                                                    }
-                                                                    onRemove={() => removeBlock(index)}
-                                                                    onEnterPress={handleEnterPress}
-                                                                    onBackspacePress={handleBackspacePress}
-                                                                    onSlashCommand={handleSlashCommand}
-                                                                    onTransformBlock={transformBlock}
-                                                                    index={index}
-                                                                    isLastBlock={isLastBlock}
-                                                                    onFocusNext={focusNextBlock}
-                                                                    onFocusPrevious={focusPreviousBlock}
-                                                                />
-                                                            </>
-                                                        )}
-                                                    </DraggableWrapper>
-                                                );
-                                            })}
-                                            {provided.placeholder}
-                                        </div>
-                                        <div className="h-screen cursor-text" />
-                                    </div>
-                                )}
-                            </DroppableWrapper>
-                        </DragDropContextWrapper>
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-grow p-4 max-w-4xl mx-auto w-full flex items-center justify-center">
+                                Loading...
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Right Column: Fixed MindMap */}
-                <div className="fixed top-[64px] right-0 h-[calc(100vh-64px)] w-1/2 border-l border-gray-200 bg-white z-10">
-
-                    <div className="relative h-full">
-                        <MindMap lessonId={lessonId} title={title} />
+                {/* Mind Map */}
+                <div 
+                    className={`${
+                        isSmallScreen
+                            ? showMindMap ? 'w-full' : 'hidden'
+                            : 'w-1/2'
+                    } border-l border-gray-200 bg-white z-10 overflow-hidden`}
+                >
+                    <div className="h-full">
+                        <MindMap 
+                            ref={mindMapRef}
+                            lessonId={lessonId} 
+                            title={title} 
+                        />
                     </div>
                 </div>
             </div>
@@ -541,6 +771,61 @@ export default function NotePage({ params }) {
                     </div>
                 </div>
             )}
+
+            {/* URL Confirmation Dialog */}
+            {pendingImageUrl && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-4 rounded-lg shadow-lg max-w-md w-full">
+                        <h3 className="text-lg font-semibold mb-2">Convert to Image?</h3>
+                        <p className="text-gray-600 mb-4">
+                            This looks like an image URL. Would you like to convert it to an image block?
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => {
+                                    setPendingImageUrl(null);
+                                    setPasteIndex(null);
+                                }}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const newBlock = {
+                                        id: uuidv4(),
+                                        type: 'image',
+                                        content: pendingImageUrl,
+                                        properties: {}
+                                    };
+                                    const updatedBlocks = [
+                                        ...blocks.slice(0, pasteIndex + 1),
+                                        newBlock,
+                                        ...blocks.slice(pasteIndex + 1)
+                                    ];
+                                    setBlocks(updatedBlocks);
+                                    saveNote(updatedBlocks);
+                                    setPendingImageUrl(null);
+                                    setPasteIndex(null);
+                                }}
+                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            >
+                                Convert to Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
+const NotePageWithProvider = ({ params }) => {
+    return (
+        <DragProvider>
+            <NotePage params={params} />
+        </DragProvider>
+    );
+};
+
+export default NotePageWithProvider;

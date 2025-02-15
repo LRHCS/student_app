@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { supabase } from '../utils/client';
 
 const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubleClick, onConnectionStart, onConnectionEnd, isConnecting, panOffset, onDelete }) => {
@@ -9,13 +9,10 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
     const [isHovered, setIsHovered] = useState(false);
 
     const handleMouseDown = (e) => {
-        if (e.button === 2) {
-            e.preventDefault();
-            onConnectionStart?.(node.id, node.x, node.y);
-            return;
-        }
-
-        if (node.isCenter) return; // Prevent dragging on center node with left-click
+        // Prevent event bubbling to container when clicking on nodes
+        e.stopPropagation();
+        
+        if (node.isCenter) return; // Prevent dragging center node
         
         if (nodeRef.current) {
             const rect = nodeRef.current.getBoundingClientRect();
@@ -62,7 +59,7 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
             id={`node-${node.id}`}
             ref={nodeRef}
             className={`absolute p-4 bg-white rounded-lg shadow-lg z-0
-                ${node.isCenter ? 'cursor-default' : 'cursor-move'} border-2 
+                ${node.isCenter ? 'cursor-default' : 'cursor-pointer'} border-2 
                 ${selected ? 'border-blue-500' : 'border-gray-200'} 
                 ${isDragging ? 'opacity-75' : ''}
                 ${isConnecting ? 'cursor-crosshair' : ''}`}
@@ -79,11 +76,12 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
                 display: node.isCenter ? 'flex' : 'block',
                 alignItems: node.isCenter ? 'center' : 'flex-start',
                 justifyContent: node.isCenter ? 'center' : 'flex-start',
-                zIndex: 0
+                zIndex: node.isCenter ? 1 : 0,
+                position: 'absolute'
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onMouseDown={handleMouseDown}
+            onMouseDown={node.isCenter ? null : handleMouseDown}
             onContextMenu={(e) => e.preventDefault()}
             onClick={(e) => {
                 e.stopPropagation();
@@ -117,13 +115,16 @@ const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubl
                         onChange={(e) => node.onLabelChange?.(e.target.value)}
                         onBlur={() => node.onEditComplete?.()}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') node.onEditComplete?.();
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                node.onEditComplete?.();
+                            }
                         }}
                         className="w-full text-center border-b border-gray-300 focus:outline-none focus:border-blue-500"
                         autoFocus
                     />
                 ) : (
-                    <span>{node.label}</span>
+                    <span className="select-none">{node.label}</span>
                 )}
             </div>
         </div>
@@ -190,7 +191,7 @@ const Connection = ({ start, end, isTemp = false, panOffset }) => {
     );
 };
 
-const MindMap = ({ lessonId, title }) => {
+const MindMap = ({ lessonId, title }, ref) => {
     const [nodes, setNodes] = useState([]);
     const [connections, setConnections] = useState([]);
     const [selectedNode, setSelectedNode] = useState(null);
@@ -201,6 +202,9 @@ const MindMap = ({ lessonId, title }) => {
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState(null);
+    const [centerPosition, setCenterPosition] = useState({ x: 0, y: 0 });
+    const [scale, setScale] = useState(1);
+    const [minimapVisible, setMinimapVisible] = useState(true);
 
     useEffect(() => {
         loadMindMap();
@@ -212,6 +216,25 @@ const MindMap = ({ lessonId, title }) => {
             setNodes(updatedNodes);
             // Optionally, persist the update to the backend:
             // saveMindMap(updatedNodes, connections);
+        }
+    }, [title]);
+
+    useEffect(() => {
+        if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            setCenterPosition({
+                x: rect.width / 2,
+                y: rect.height / 2
+            });
+        }
+    }, []);
+
+    useEffect(() => {
+        if (nodes.length > 0) {
+            const updatedNodes = nodes.map(node => 
+                node.isCenter ? { ...node, label: title } : node
+            );
+            setNodes(updatedNodes);
         }
     }, [title]);
 
@@ -229,23 +252,26 @@ const MindMap = ({ lessonId, title }) => {
             return;
         }
 
-        const containerRect = containerRef.current.getBoundingClientRect();
-        const centerX = containerRect.width / 2;
-        const centerY = containerRect.height / 2;
-
         if (data?.mindmap?.nodes?.length > 0) {
-            // Ensure the first node is the center node with the passed title
-            const updatedNodes = data.mindmap.nodes.map((node, index) => 
-                index === 0 ? { ...node, isCenter: true, x: centerX, y: centerY, label: title } : node
-            );
+            // Keep center node at (0,0) relative position
+            const updatedNodes = data.mindmap.nodes.map((node, index) => {
+                if (index === 0) {
+                    return {
+                        ...node,
+                        position: { x: 0, y: 0 },
+                        isCenter: true,
+                        label: title
+                    };
+                }
+                return node;
+            });
             setNodes(updatedNodes);
             setConnections(data.mindmap.connections || []);
         } else {
             const centerNode = {
                 id: '1',
                 label: title,
-                x: centerX,
-                y: centerY,
+                position: { x: 0, y: 0 },
                 isCenter: true,
             };
             setNodes([centerNode]);
@@ -270,18 +296,19 @@ const MindMap = ({ lessonId, title }) => {
     };
 
     const handleNodeDrag = (nodeId, x, y) => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node?.isCenter) return; // Prevent dragging center node
+
         const containerRect = containerRef.current.getBoundingClientRect();
-        const nodeElement = document.getElementById(`node-${nodeId}`);
-        const nodeRect = nodeElement.getBoundingClientRect();
-        const halfNodeWidth = nodeRect.width / 2;
-        const halfNodeHeight = nodeRect.height / 2;
+        const centerX = containerRect.width / 2;
+        const centerY = containerRect.height / 2;
         
-        // Constrain x and y to keep the node fully within the container
-        const relativeX = Math.max(halfNodeWidth, Math.min(x, containerRect.width - halfNodeWidth));
-        const relativeY = Math.max(halfNodeHeight, Math.min(y, containerRect.height - halfNodeHeight));
+        // Convert to relative position
+        const relativeX = x - centerX;
+        const relativeY = y - centerY;
 
         setNodes(nodes.map(node =>
-            node.id === nodeId ? { ...node, x: relativeX, y: relativeY } : node
+            node.id === nodeId ? { ...node, position: { x: relativeX, y: relativeY } } : node
         ));
     };
 
@@ -299,8 +326,7 @@ const MindMap = ({ lessonId, title }) => {
         const newNode = {
             id: Date.now().toString(),
             label: 'New Node',
-            x: newX,
-            y: newY,
+            position: { x: newX, y: newY },
         };
 
         const newNodes = [...nodes, newNode];
@@ -399,31 +425,327 @@ const MindMap = ({ lessonId, title }) => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Function to calculate relative position from center
+    const getRelativePosition = (node) => {
+        if (!node.position) return { x: 0, y: 0 };
+        return {
+            x: node.position.x - centerPosition.x,
+            y: node.position.y - centerPosition.y
+        };
+    };
+
+    // Function to calculate absolute position from relative
+    const getAbsolutePosition = (node) => {
+        if (!containerRef.current) return { x: 0, y: 0 };
+        
+        const rect = containerRef.current.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        // For center node, always return center position
+        if (node.isCenter) {
+            return { x: centerX, y: centerY };
+        }
+
+        return {
+            x: (node.position?.x || 0) + centerX,
+            y: (node.position?.y || 0) + centerY
+        };
+    };
+
+    // Add wheel handler for zooming
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const handleWheelEvent = (e) => {
+            e.preventDefault();
+            const delta = e.deltaY;
+            setScale(prevScale => {
+                const newScale = delta > 0 
+                    ? Math.max(0.5, prevScale - 0.1)
+                    : Math.min(2, prevScale + 0.1);
+                return newScale;
+            });
+        };
+
+        container.addEventListener('wheel', handleWheelEvent, { passive: false });
+        return () => container.removeEventListener('wheel', handleWheelEvent);
+    }, []);
+
+    // Add keyboard handlers
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (selectedNode) {
+                switch (e.key) {
+                    case 'Tab':
+                        e.preventDefault();
+                        const parentNode = nodes.find(n => n.id === selectedNode);
+                        if (parentNode) {
+                            const parentPos = getAbsolutePosition(parentNode);
+                            const newNode = {
+                                id: Date.now().toString(),
+                                label: 'New Node',
+                                position: {
+                                    x: (parentPos.x - centerPosition.x) + 150,
+                                    y: (parentPos.y - centerPosition.y) + 50
+                                }
+                            };
+                            const newNodes = [...nodes, newNode];
+                            const newConnection = {
+                                id: Date.now().toString(),
+                                start: selectedNode,
+                                end: newNode.id
+                            };
+                            setNodes(newNodes);
+                            setConnections([...connections, newConnection]);
+                            setSelectedNode(newNode.id);
+                            saveMindMap(newNodes, [...connections, newConnection]);
+                        }
+                        break;
+                    case ' ': // Space key
+                        e.preventDefault();
+                        setNodes(nodes.map(node =>
+                            node.id === selectedNode ? { ...node, isEditing: true } : node
+                        ));
+                        break;
+                    case 'Enter':
+                        if (nodes.find(n => n.id === selectedNode)?.isEditing) {
+                            e.preventDefault();
+                            handleEditComplete(selectedNode);
+                        }
+                        break;
+                    case 'Backspace':
+                        if (!nodes.find(n => n.id === selectedNode)?.isEditing) {
+                            e.preventDefault();
+                            deleteNode(selectedNode);
+                        }
+                        break;
+                    case 'ArrowLeft':
+                    case 'ArrowRight':
+                    case 'ArrowUp':
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        navigateNodes(e.key);
+                        break;
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedNode, nodes, connections]);
+
+    // Add navigation function
+    const navigateNodes = (direction) => {
+        const currentNode = nodes.find(n => n.id === selectedNode);
+        if (!currentNode) return;
+
+        const currentPos = getAbsolutePosition(currentNode);
+        let closestNode = null;
+        let closestDistance = Infinity;
+
+        nodes.forEach(node => {
+            if (node.id === selectedNode) return;
+            const nodePos = getAbsolutePosition(node);
+            const dx = nodePos.x - currentPos.x;
+            const dy = nodePos.y - currentPos.y;
+
+            // Check if node is in the correct direction
+            const isCorrectDirection = 
+                (direction === 'ArrowLeft' && dx < 0) ||
+                (direction === 'ArrowRight' && dx > 0) ||
+                (direction === 'ArrowUp' && dy < 0) ||
+                (direction === 'ArrowDown' && dy > 0);
+
+            if (isCorrectDirection) {
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestNode = node;
+                }
+            }
+        });
+
+        if (closestNode) {
+            setSelectedNode(closestNode.id);
+        }
+    };
+
+    // Add this function to handle panning
+    const handlePan = (e) => {
+        if (isPanning && panStart) {
+            const dx = e.clientX - panStart.x;
+            const dy = e.clientY - panStart.y;
+            setPanOffset({
+                x: panStart.offset.x + dx,
+                y: panStart.offset.y + dy
+            });
+        }
+    };
+
+    // Update the Minimap component
+    const Minimap = () => {
+        const minimapStyle = {
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            width: '200px',
+            height: '150px',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            zIndex: 1000,
+        };
+
+        // Calculate bounds with default values
+        const bounds = nodes.reduce((acc, node) => {
+            const pos = getAbsolutePosition(node);
+            return {
+                minX: Math.min(acc.minX, pos.x),
+                maxX: Math.max(acc.maxX, pos.x),
+                minY: Math.min(acc.minY, pos.y),
+                maxY: Math.max(acc.maxY, pos.y)
+            };
+        }, { minX: 0, maxX: 0, minY: 0, maxY: 0 }); // Changed initial values from Infinity
+
+        // Ensure minimum size and prevent invalid dimensions
+        const padding = 20;
+        const contentWidth = Math.max(200, bounds.maxX - bounds.minX + padding * 2);
+        const contentHeight = Math.max(150, bounds.maxY - bounds.minY + padding * 2);
+        const scaleX = 200 / contentWidth;
+        const scaleY = 150 / contentHeight;
+        const minimapScale = Math.min(scaleX, scaleY, 1); // Ensure scale is not greater than 1
+
+        return (
+            <div style={minimapStyle}>
+                <div style={{
+                    transform: `scale(${minimapScale})`,
+                    transformOrigin: 'top left',
+                    position: 'relative',
+                    width: `${contentWidth}px`, // Add px unit
+                    height: `${contentHeight}px`, // Add px unit
+                    minWidth: '200px',
+                    minHeight: '150px'
+                }}>
+                    {/* Draw connections first */}
+                    <svg 
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            transform: `translate(${padding - bounds.minX}px, ${padding - bounds.minY}px)`
+                        }}
+                    >
+                        {connections.map(connection => {
+                            const startNode = nodes.find(n => n.id === connection.start);
+                            const endNode = nodes.find(n => n.id === connection.end);
+                            if (!startNode || !endNode) return null;
+                            
+                            const startPos = getAbsolutePosition(startNode);
+                            const endPos = getAbsolutePosition(endNode);
+                            
+                            return (
+                                <line
+                                    key={connection.id}
+                                    x1={startPos.x}
+                                    y1={startPos.y}
+                                    x2={endPos.x}
+                                    y2={endPos.y}
+                                    stroke="#999"
+                                    strokeWidth="2"
+                                />
+                            );
+                        })}
+                    </svg>
+                    {/* Draw nodes */}
+                    {nodes.map(node => {
+                        const pos = getAbsolutePosition(node);
+                        return (
+                            <div
+                                key={`minimap-${node.id}`}
+                                style={{
+                                    position: 'absolute',
+                                    left: pos.x - bounds.minX + padding,
+                                    top: pos.y - bounds.minY + padding,
+                                    width: node.isCenter ? '20px' : '12px',
+                                    height: node.isCenter ? '20px' : '12px',
+                                    backgroundColor: node.isCenter ? 'black' : 
+                                                  (node.id === selectedNode ? 'blue' : 'gray'),
+                                    borderRadius: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    border: '2px solid white',
+                                    boxShadow: '0 0 3px rgba(0,0,0,0.3)'
+                                }}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    // Add this function to center the mindmap
+    const centerMindMap = useCallback(() => {
+        setPanOffset({ x: 0, y: 0 });
+        setScale(1);
+    }, []);
+
+    // Add this effect to watch for visibility changes
+    useEffect(() => {
+        // Get the container element
+        const container = containerRef.current;
+        if (!container) return;
+
+        // Create an observer instance
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    // Check if the element is becoming visible (not hidden)
+                    if (!container.classList.contains('hidden')) {
+                        centerMindMap();
+                    }
+                }
+            });
+        });
+
+        // Start observing
+        observer.observe(container, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
+
+        // Cleanup
+        return () => observer.disconnect();
+    }, [centerMindMap]);
+
+    // Add a prop to expose the center function
+    useImperativeHandle(ref, () => ({
+        centerMindMap
+    }));
+
     return (
         <div 
-            ref={containerRef}
-            className="absolute inset-0 bg-gray-50"
-            onClick={() => {
-                setSelectedNode(null);
-                if (isConnecting) {
-                    setIsConnecting(false);
-                    setConnectionStart(null);
-                    setTempConnection(null);
-                }
-            }}
+            ref={containerRef} 
+            className="relative w-full h-full bg-gray-50 overflow-hidden"
             onMouseDown={(e) => {
-                if (e.target === containerRef.current) {
+                // Change to left mouse button (button 0)
+                if (e.button === 0) {
+                    e.preventDefault();
                     setIsPanning(true);
-                    setPanStart({ x: e.clientX, y: e.clientY, offset: { ...panOffset } });
+                    setPanStart({ 
+                        x: e.clientX, 
+                        y: e.clientY, 
+                        offset: { ...panOffset } 
+                    });
+                    document.body.style.cursor = 'grabbing';
                 }
             }}
             onMouseMove={(e) => {
-                if (isPanning && panStart) {
-                    const dx = e.clientX - panStart.x;
-                    const dy = e.clientY - panStart.y;
-                    setPanOffset({ x: panStart.offset.x + dx, y: panStart.offset.y + dy });
-                    return;
-                }
+                handlePan(e);
                 if (isConnecting && connectionStart) {
                     const rect = containerRef.current.getBoundingClientRect();
                     setTempConnection({
@@ -436,81 +758,90 @@ const MindMap = ({ lessonId, title }) => {
                 if (isPanning) {
                     setIsPanning(false);
                     setPanStart(null);
+                    document.body.style.cursor = 'default';
                 }
             }}
-            onDoubleClick={(e) => {
-                e.stopPropagation();
-                if (containerRef.current) {
-                    const rect = containerRef.current.getBoundingClientRect();
-                    const clickX = e.clientX - rect.left;
-                    const clickY = e.clientY - rect.top;
-                    addNode(clickX - panOffset.x, clickY - panOffset.y);
+            onMouseLeave={() => {
+                if (isPanning) {
+                    setIsPanning(false);
+                    setPanStart(null);
+                    document.body.style.cursor = 'default';
                 }
             }}
+            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
         >
-            {connections.map(connection => {
-                const startNode = nodes.find(n => n.id === connection.start);
-                const endNode = nodes.find(n => n.id === connection.end);
-                if (!startNode || !endNode) return null;
+            <div style={{
+                transform: `scale(${scale}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                transformOrigin: 'center',
+                width: '100%',
+                height: '100%',
+                position: 'relative',
+                transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+            }}>
+                {connections.map(connection => {
+                    const startNode = nodes.find(n => n.id === connection.start);
+                    const endNode = nodes.find(n => n.id === connection.end);
+                    if (!startNode || !endNode) return null;
 
-                return (
+                    const startPos = getAbsolutePosition(startNode);
+                    const endPos = getAbsolutePosition(endNode);
+
+                    return (
+                        <Connection
+                            key={connection.id}
+                            start={{ ...startNode, x: startPos.x, y: startPos.y }}
+                            end={{ ...endNode, x: endPos.x, y: endPos.y }}
+                            panOffset={panOffset}
+                        />
+                    );
+                })}
+
+                {isConnecting && connectionStart && tempConnection && (
                     <Connection
-                        key={connection.id}
-                        start={startNode}
-                        end={endNode}
+                        start={connectionStart}
+                        end={tempConnection}
+                        isTemp={true}
                         panOffset={panOffset}
                     />
-                );
-            })}
+                )}
 
-            {isConnecting && connectionStart && tempConnection && (
-                <Connection
-                    start={connectionStart}
-                    end={tempConnection}
-                    isTemp={true}
-                    panOffset={panOffset}
-                />
-            )}
-
-            {nodes.map(node => {
-                // Always override the label for the center node with the passed title
-                const displayNode = node.isCenter ? { ...node, label: title } : node;
-                return (
-                    <Node
-                        key={node.id}
-                        node={{
-                            ...displayNode,
-                            onLabelChange: (label) => handleLabelChange(node.id, label),
-                            onEditComplete: () => handleEditComplete(node.id),
-                        }}
-                        selected={selectedNode === node.id}
-                        onDrag={handleNodeDrag}
-                        onDragEnd={handleNodeDragEnd}
-                        onClick={handleNodeClick}
-                        onDoubleClick={handleNodeDoubleClick}
-                        onConnectionStart={handleConnectionStart}
-                        onConnectionEnd={handleConnectionEnd}
-                        isConnecting={isConnecting}
-                        panOffset={panOffset}
-                        onDelete={() => deleteNode(node.id)}
-                        className="z-0"
-                    />
-                );
-            })}
-
-            <div className="absolute bottom-4 right-4 flex gap-2 z-50">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        addNode();
-                    }}
-                    className="border w-full border-gray-300 px-4 py-2 text-sm rounded-lg shadow-lg hover:border-gray-600 absolute bottom-14 right-4" 
-                >
-                    Add Node
-                </button>
+                {nodes.map(node => {
+                    const absPos = getAbsolutePosition(node);
+                    return (
+                        <Node
+                            key={node.id}
+                            node={{
+                                ...node,
+                                x: absPos.x,
+                                y: absPos.y,
+                                label: node.isCenter ? title : node.label,
+                                onLabelChange: (label) => handleLabelChange(node.id, label),
+                                onEditComplete: () => handleEditComplete(node.id),
+                            }}
+                            selected={selectedNode === node.id}
+                            onDrag={handleNodeDrag}
+                            onDragEnd={handleNodeDragEnd}
+                            onClick={handleNodeClick}
+                            onDoubleClick={handleNodeDoubleClick}
+                            onConnectionStart={handleConnectionStart}
+                            onConnectionEnd={handleConnectionEnd}
+                            isConnecting={isConnecting}
+                            panOffset={panOffset}
+                            onDelete={() => deleteNode(node.id)}
+                        />
+                    );
+                })}
             </div>
+            {minimapVisible && <Minimap />}
+            <button
+                onClick={() => setMinimapVisible(!minimapVisible)}
+                className="absolute top-4 right-4 px-2 py-1 bg-white rounded shadow"
+            >
+                {minimapVisible ? 'Hide' : 'Show'} Minimap
+            </button>
+            
         </div>
     );
 };
 
-export default MindMap; 
+export default forwardRef(MindMap); 

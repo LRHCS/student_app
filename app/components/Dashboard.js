@@ -12,7 +12,8 @@ import Image from "next/image";
 import { loadDashboardData } from "@/app/utils/loadDashboardData"; // Import the data loader
 import { RiFocus2Line } from "react-icons/ri";
 import ProfileLink from "@/app/components/ProfileLink";
-
+import { PiExam } from "react-icons/pi";
+import { MdOutlineAssignment } from "react-icons/md";
 export default function Dashboard() {
     const [courses, setCourses] = useState([]);
     const [topics, setTopics] = useState([]);
@@ -102,9 +103,8 @@ export default function Dashboard() {
                                 <Link href={`/course/${course.title}`} className="mr-4 text-xl font-bold">
                                     {course.title}
                                 </Link>
-                                <div className="text-sm text-gray-600 mt-2">
-                                    <p>Unfinished Assignments: {counts.assignments}</p>
-                                    <p>Unfinished Notes: {counts.lessons}</p>
+                                <div className="text-sm text-gray-600 mt-2 flex gap-2"><MdOutlineAssignment className="text-xl" alt="assignment"/>
+                                    <p>{counts.assignments}</p>
                                 </div>
                             </div>
                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-4">
