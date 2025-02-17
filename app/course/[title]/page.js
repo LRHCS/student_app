@@ -25,6 +25,24 @@ export default function Page({ params }) {
     const [examLessons, setExamLessons] = useState({});
 
     useEffect(() => {
+        const fetchCourseData = async (title) => {
+            const { data: course } = await supabase
+                .from('courses')
+                .select('*')
+                .eq('title', title)
+                .single();
+
+            if (!course) return null;
+
+            const { data: topics } = await supabase
+                .from('topics')
+                .select('*')
+                .eq('course_id', course.user_id)
+                .order('created_at');
+
+            return { course, topics };
+        };
+
         const fetchTopics = async () => {
             const { data: courseData, error: courseError } = await supabase
                 .from("Courses")
@@ -382,6 +400,7 @@ export default function Page({ params }) {
     return (
         <div className="p-4 relative">
             <ProfileLink />
+
             <Link href="../" className="hover:underline mb-4 inline-block">
                 Dashboard
             </Link>

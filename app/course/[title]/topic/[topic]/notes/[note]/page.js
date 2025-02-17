@@ -27,9 +27,12 @@ import {
 } from 'react-icons/md';
 import BlockRenderer from './BlockRenderer';
 import DrawingLayer from '@/app/components/DrawingLayer';
-import MindMap from '@/app/components/MindMap';
 import { isValidImageUrl } from '@/app/utils/imageUtils';
 import { useDrag } from '@/app/contexts/DragContext';
+import MindMap from '@/app/components/MindMap';
+import PracticeQuestion from '@/app/components/PracticeQuestion';
+import NoteSummary from '@/app/components/NoteSummary';
+import NoteFooter from '@/app/components/NoteFooter';
 
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
@@ -680,9 +683,9 @@ function NotePage({ params }) {
                         isSmallScreen 
                             ? showMindMap ? 'hidden' : 'w-full' 
                             : 'w-1/2'
-                    } border-r border-gray-200 overflow-y-auto z-30 bg-white`}
+                    } border-r border-gray-200 z-30 bg-white flex flex-col h-full`}
                 >
-                    <div className="note-content-container relative w-full">
+                    <div className="note-content-container flex-1 overflow-y-auto ">
                         {/* Pre-mount DrawingLayer but keep it hidden when inactive */}
                         <div style={{ visibility: isDrawingMode ? 'visible' : 'hidden' }}>
                             <DrawingLayer isActive={isDrawingMode} lessonId={lessonId} />
@@ -723,13 +726,18 @@ function NotePage({ params }) {
                                         onClick={handleContainerClick}
                                     />
                                 </div>
+                                
                             </div>
                         ) : (
-                            <div className="flex-grow p-4 max-w-4xl mx-auto w-full flex items-center justify-center">
-                                Loading...
-                            </div>
-                        )}
+                            <div className="flex items-center justify-center h-screen">
+
+                            <div className="w-16 h-16 border-8 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            
+                        </div>
+                        )}                    
+                        
                     </div>
+                    <NoteFooter lessonId={lessonId} title={title} />
                 </div>
 
                 {/* Mind Map */}
@@ -742,7 +750,6 @@ function NotePage({ params }) {
                 >
                     <div className="h-full">
                         <MindMap 
-                            ref={mindMapRef}
                             lessonId={lessonId} 
                             title={title} 
                         />

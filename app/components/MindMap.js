@@ -204,7 +204,6 @@ const MindMap = ({ lessonId, title }, ref) => {
     const [panStart, setPanStart] = useState(null);
     const [centerPosition, setCenterPosition] = useState({ x: 0, y: 0 });
     const [scale, setScale] = useState(1);
-    const [minimapVisible, setMinimapVisible] = useState(true);
 
     useEffect(() => {
         loadMindMap();
@@ -584,143 +583,9 @@ const MindMap = ({ lessonId, title }, ref) => {
         }
     };
 
-    // Update the Minimap component
-    const Minimap = () => {
-        const minimapStyle = {
-            position: 'absolute',
-            bottom: '20px',
-            right: '20px',
-            width: '200px',
-            height: '150px',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            overflow: 'hidden',
-            zIndex: 1000,
-        };
+    
 
-        // Calculate bounds with default values
-        const bounds = nodes.reduce((acc, node) => {
-            const pos = getAbsolutePosition(node);
-            return {
-                minX: Math.min(acc.minX, pos.x),
-                maxX: Math.max(acc.maxX, pos.x),
-                minY: Math.min(acc.minY, pos.y),
-                maxY: Math.max(acc.maxY, pos.y)
-            };
-        }, { minX: 0, maxX: 0, minY: 0, maxY: 0 }); // Changed initial values from Infinity
 
-        // Ensure minimum size and prevent invalid dimensions
-        const padding = 20;
-        const contentWidth = Math.max(200, bounds.maxX - bounds.minX + padding * 2);
-        const contentHeight = Math.max(150, bounds.maxY - bounds.minY + padding * 2);
-        const scaleX = 200 / contentWidth;
-        const scaleY = 150 / contentHeight;
-        const minimapScale = Math.min(scaleX, scaleY, 1); // Ensure scale is not greater than 1
-
-        return (
-            <div style={minimapStyle}>
-                <div style={{
-                    transform: `scale(${minimapScale})`,
-                    transformOrigin: 'top left',
-                    position: 'relative',
-                    width: `${contentWidth}px`, // Add px unit
-                    height: `${contentHeight}px`, // Add px unit
-                    minWidth: '200px',
-                    minHeight: '150px'
-                }}>
-                    {/* Draw connections first */}
-                    <svg 
-                        style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            transform: `translate(${padding - bounds.minX}px, ${padding - bounds.minY}px)`
-                        }}
-                    >
-                        {connections.map(connection => {
-                            const startNode = nodes.find(n => n.id === connection.start);
-                            const endNode = nodes.find(n => n.id === connection.end);
-                            if (!startNode || !endNode) return null;
-                            
-                            const startPos = getAbsolutePosition(startNode);
-                            const endPos = getAbsolutePosition(endNode);
-                            
-                            return (
-                                <line
-                                    key={connection.id}
-                                    x1={startPos.x}
-                                    y1={startPos.y}
-                                    x2={endPos.x}
-                                    y2={endPos.y}
-                                    stroke="#999"
-                                    strokeWidth="2"
-                                />
-                            );
-                        })}
-                    </svg>
-                    {/* Draw nodes */}
-                    {nodes.map(node => {
-                        const pos = getAbsolutePosition(node);
-                        return (
-                            <div
-                                key={`minimap-${node.id}`}
-                                style={{
-                                    position: 'absolute',
-                                    left: pos.x - bounds.minX + padding,
-                                    top: pos.y - bounds.minY + padding,
-                                    width: node.isCenter ? '20px' : '12px',
-                                    height: node.isCenter ? '20px' : '12px',
-                                    backgroundColor: node.isCenter ? 'black' : 
-                                                  (node.id === selectedNode ? 'blue' : 'gray'),
-                                    borderRadius: '50%',
-                                    transform: 'translate(-50%, -50%)',
-                                    border: '2px solid white',
-                                    boxShadow: '0 0 3px rgba(0,0,0,0.3)'
-                                }}
-                            />
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
-
-    // Add this function to center the mindmap
-    const centerMindMap = useCallback(() => {
-        setPanOffset({ x: 0, y: 0 });
-        setScale(1);
-    }, []);
-
-    // Add this effect to watch for visibility changes
-    useEffect(() => {
-        // Get the container element
-        const container = containerRef.current;
-        if (!container) return;
-
-        // Create an observer instance
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    // Check if the element is becoming visible (not hidden)
-                    if (!container.classList.contains('hidden')) {
-                        centerMindMap();
-                    }
-                }
-            });
-        });
-
-        // Start observing
-        observer.observe(container, {
-            attributes: true,
-            attributeFilter: ['class']
-        });
-
-        // Cleanup
-        return () => observer.disconnect();
-    }, [centerMindMap]);
 
     // Add a prop to expose the center function
     useImperativeHandle(ref, () => ({
@@ -832,16 +697,9 @@ const MindMap = ({ lessonId, title }, ref) => {
                     );
                 })}
             </div>
-            {minimapVisible && <Minimap />}
-            <button
-                onClick={() => setMinimapVisible(!minimapVisible)}
-                className="absolute top-4 right-4 px-2 py-1 bg-white rounded shadow"
-            >
-                {minimapVisible ? 'Hide' : 'Show'} Minimap
-            </button>
             
         </div>
     );
 };
 
-export default forwardRef(MindMap); 
+export default MindMap; 

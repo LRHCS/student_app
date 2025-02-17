@@ -6,9 +6,12 @@ import Link from "next/link";
 import { AiOutlinePlus } from "react-icons/ai";
 import { supabase } from "@/app/utils/client";
 import ProfileLink from "@/app/components/ProfileLink";
+import PracticeQuestionsList from "@/app/components/PracticeQuestionsList";
 
 export default function Page({ params }) {
     const [lessons, setLessons] = useState([]);
+    const [topicData, setTopicData] = useState(null);
+
     const pathname = usePathname();
     const router = useRouter();
     const topicTitle = decodeURIComponent(pathname.split("/").pop());
@@ -29,6 +32,9 @@ export default function Page({ params }) {
             console.error('Error fetching topic:', topicError);
             return;
         }
+
+        // Save topic data for use in PracticeQuestionsList
+        setTopicData(topic);
 
         const { data: lessons, error: lessonsError } = await supabase
             .from('Lessons')
@@ -115,9 +121,7 @@ export default function Page({ params }) {
                 <span className="font-bold"> {topicTitle}</span>
             </div>
             <div className="flex items-center">
-
                 <h1 className="text-4xl font-bold m-4 mb-6 ml-0 align-middle text-center">{topicTitle} Notes</h1>
-
                 <button
                     onClick={addLesson}
                     className="text-xl text-gray-500 bold hover:text-gray-700"
@@ -125,7 +129,7 @@ export default function Page({ params }) {
                     <AiOutlinePlus className="text-2xl"/>
                 </button>
             </div>
-
+            { topicData && <PracticeQuestionsList examId={topicData.id} /> }
             <div>
                 <h2 className="text-2xl font-semibold mb-4"></h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

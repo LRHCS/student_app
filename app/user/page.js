@@ -11,6 +11,8 @@ export default function UserProfile() {
     const [username, setUsername] = useState("");
     const [avatar_url, setAvatarUrl] = useState("");
     const [uploading, setUploading] = useState(false);
+    const [feedback, setFeedback] = useState("");
+    const [feedbackLoading, setFeedbackLoading] = useState(false);
 
     useEffect(() => {
         getProfile();
@@ -119,7 +121,23 @@ export default function UserProfile() {
         }
     }
 
-
+    // <-- New Function for Feedback Submission
+    async function submitFeedback(e) {
+        e.preventDefault();
+        try {
+            setFeedbackLoading(true);
+            // Insert the feedback into the "feedback" table
+            const { error } = await supabase
+                .from("feedback")
+                .insert({ feedback });
+            if (error) throw error;
+            setFeedback(""); // Clear the textarea
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setFeedbackLoading(false);
+        }
+    }
 
     async function signOut() {
         await supabase.auth.signOut();
@@ -127,7 +145,11 @@ export default function UserProfile() {
     }
 
     if (loading) {
-        return <div className="flex justify-center items-center h-screen text-gray-500">Loading...</div>;
+        return            ( <div className="flex items-center justify-center h-screen">
+
+        <div className="w-16 h-16 border-8 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+
+    </div>);
     }
 
     return (
@@ -173,13 +195,34 @@ export default function UserProfile() {
 
                     {/* Buttons */}
                     <div className="mt-6 flex flex-col gap-2">
-
                         <button
                             onClick={signOut}
                             className="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition"
                         >
                             Sign Out
                         </button>
+                    </div>
+
+                    {/* Feedback Section */}
+                    <div className="mt-6">
+                        <form onSubmit={submitFeedback}>
+                            <h3 className="text-xl font-semibold text-gray-800">Feedback</h3>
+                            <textarea
+                                value={feedback}
+                                onChange={(e) => setFeedback(e.target.value)}
+                                placeholder="Your feedback..."
+                                rows="3"
+                                className="mt-2 w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:border-blue-500"
+                                required
+                            />
+                            <button
+                                type="submit"
+                                disabled={feedbackLoading}
+                                className="mt-2 w-full py-2 rounded-lg transition"
+                            >
+                                {feedbackLoading ? "Submitting..." : "Submit Feedback"}
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>

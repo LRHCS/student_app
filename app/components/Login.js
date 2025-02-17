@@ -71,7 +71,7 @@ export default function AuthPage() {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+        <div className="flex flex-col items-center justify-center h-screen bg-gray-100 z-60">
             <h1 className="text-2xl font-bold mb-4">{isSignUp ? "Sign Up" : "Sign In"}</h1>
             <button
                 onClick={signInWithGoogle}

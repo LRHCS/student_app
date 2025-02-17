@@ -1,5 +1,5 @@
 import "./globals.css";
-
+import PomodoroTimer from './components/PomodoroTimer'
 
 export const metadata = {
   title: "Student App",
@@ -9,9 +9,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+      <head>
+      </head>
       <body>
           {children}
-
       </body>
     </html>
   );

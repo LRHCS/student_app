@@ -2,32 +2,34 @@
 import { supabase } from "@/app/utils/client";
 
 export async function loadKanbanData() {
-    const [assignmentsRes, examsRes, lessonsRes] = await Promise.all([
+    const [assignmentsRes, examsRes] = await Promise.all([
         supabase.from("Assignments").select("*"),
-        supabase.from("Exams").select("*"),
-        supabase.from("Lessons").select(`
-      id, title, status, topic_id,
-      Topics (
-        title,
-        Courses ( title )
-      )
-    `),
+        supabase.from("Exams").select(`
+            *,
+            Topics (
+                title,
+                Courses ( title )
+            )
+        `)
     ]);
 
-    if (assignmentsRes.error || examsRes.error || lessonsRes.error) {
+    if (assignmentsRes.error || examsRes.error) {
         console.error(
             "Error fetching data:",
             assignmentsRes.error,
-            examsRes.error,
-            lessonsRes.error
+            examsRes.error
         );
-        // Return empty arrays in case of error.
-        return { assignments: [], exams: [], lessons: [] };
+        return { assignments: [], exams: [] };
     }
 
     return {
         assignments: assignmentsRes.data,
-        exams: examsRes.data,
-        lessons: lessonsRes.data,
+        exams: examsRes.data.map(exam => ({
+            ...exam,
+            type: "exam",
+            status: exam.status || 0,
+            course_name: exam.Topics?.Courses?.title || "Unknown Course",
+            topic_name: exam.Topics?.title || "Unknown Topic"
+        }))
     };
 }

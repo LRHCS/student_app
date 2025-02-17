@@ -628,7 +628,11 @@ const BlockRenderer = ({
                                         <div className="text-center text-gray-500">- or -</div>
                                         <div className="flex flex-col gap-2">
                                             {loading ? (
-                                                <div className="text-center text-gray-500">Loading...</div>
+                                                            <div className="flex items-center justify-center h-screen">
+
+                                                            <div className="w-16 h-16 border-8 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                            
+                                                        </div>
                                             ) : user ? (
                                                 <input
                                                     type="file"

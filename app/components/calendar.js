@@ -491,9 +491,9 @@ const Calendar = () => {
                                 const isMobile = window.innerWidth < 1020;
                                 handleDayClick(date, dayExams, isMobile);
                             }}
-                            className={`border p-2 relative group cursor-pointer
-                                ${date === new Date().toISOString().split('T')[0] ? "bg-gray-400 rounded" : ""}
-                                sm:min-h-24 min-h-12 rounded-lg border-gray-300`}
+                            className={`border p-2 relative group cursor-pointer border border-gray-300 rounded-lg p-2
+                                ${date === new Date().toISOString().split('T')[0] ? "bg-gray-300 rounded" : ""}
+                                sm:min-h-24 min-h-12 rounded-lg `}
                         >
                             {/* Add button */}
                             <button
@@ -512,7 +512,7 @@ const Calendar = () => {
                                 </span>
                                 
                                 {/* Content for mobile and medium screens */}
-                                <div className="xl:hidden mt-1 flex flex-wrap gap-1 justify-center">
+                                <div className="xl:hidden mt-1 flex flex-wrap gap-1 justify-center rounded-lg p-2">
                                     {dayExams.length > 0 && (
                                         <div className="w-3 h-3 rounded-full bg-blue-400" 
                                              title={`${dayExams.length} exam${dayExams.length > 1 ? 's' : ''}`} />
@@ -527,21 +527,21 @@ const Calendar = () => {
                                 </div>
 
                                 {/* Full content for larger screens */}
-                                <div className="hidden xl:block w-full">
+                                <div className="hidden xl:block w-full ">
                                     {dayExams.map((item) => (
                                         <div 
                                             key={`exam-${item.id}`}
                                             draggable={true}
                                             onDragStart={(e) => handleDragStart(e, item, "exam")}
                                             onClick={(e) => handleExamClick(e, item.id)}
-                                            className={`flex items-center justify-between mt-1 p-1 text-sm border rounded-lg 
+                                            className={`flex items-center justify-between mt-1 p-1 text-sm border rounded-lg  
                                                 ${item.isPast 
                                                     ? 'bg-gray-100 text-gray-500 border-none' 
                                                     : 'hover:bg-gray-300'} cursor-pointer border-none`}
                                             onMouseEnter={() => setHoveredExamId(item.id)}
                                             onMouseLeave={() => setHoveredExamId(null)}
                                         >
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 border w-full border-gray-400 rounded-lg p-2">
                                                 <PiExam className="text-xl" />
                                                 {item.title}
                                             </div>
@@ -552,7 +552,7 @@ const Calendar = () => {
                                             key={`assignment-${item.id}`}
                                             draggable={true}
                                             onDragStart={(e) => handleDragStart(e, item, "assignment")}
-                                            className={`flex flex-col gap-1 mt-1 p-1 text-sm border rounded-lg
+                                            className={`flex flex-col gap-1 mt-1 p-1 text-sm border rounded-lg 
                                                 ${item.isPast 
                                                     ? 'bg-gray-100 text-gray-500 border-none' 
                                                     : 'hover:bg-gray-300'} cursor-pointer border-none`}
@@ -560,7 +560,7 @@ const Calendar = () => {
                                             onMouseLeave={() => setHoveredAssignmentId(null)}
                                             onClick={(e) => e.stopPropagation()}
                                         >
-                                            <div className="flex flex-col gap-1">
+                                            <div className="flex flex-col gap-1 border border-gray-400 rounded-lg p-2">
                                                 <div className="flex items-center gap-2">
                                                     <MdOutlineAssignment className="text-xl" />
                                                     {item.title}
