@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import { AiOutlineSend, AiOutlinePlus } from "react-icons/ai";
 import { supabase } from "@/app/utils/client";
+import Link from "next/link";
 
 export default function StudyGroupPage() {
   const params = useParams();
@@ -237,7 +238,15 @@ export default function StudyGroupPage() {
   }
 
   return (
+    <div>
+        <Link href="../" className="hover:underline mb-4 inline-block font-bold">
+                Dashboard
+      </Link>
+      <span> /</span>
+      <span> {group.title}</span>
     <div className="flex flex-col md:flex-row h-screen">
+      
+
       {/* Left Sidebar: Channel Overview */}
       <div className="md:w-1/4 border-r border-gray-200 p-4 flex flex-col">
         <h2 className="text-2xl font-bold mb-4">Channels</h2>
@@ -415,6 +424,7 @@ export default function StudyGroupPage() {
           </form>
         </div>
       )}
+    </div>
     </div>
   );
 } 
