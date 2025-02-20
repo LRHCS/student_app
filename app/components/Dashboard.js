@@ -1,19 +1,21 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Card } from "@/app/UI";
+import { Card } from "../UI";
 import { CiEdit } from "react-icons/ci";
 import { RiDeleteBin5Line } from "react-icons/ri";
 import { AiOutlinePlus } from "react-icons/ai";
-import Calendar from "@/app/components/Calendar/calendar";
+import Calendar from "./Calendar/calendar";
 import { v4 as uuidv4 } from "uuid";
-import { supabase } from "@/app/utils/client";
+import { supabase } from "../utils/client";
 import Image from "next/image";
-import { loadDashboardData } from "@/app/utils/loadDashboardData"; // Import the data loader
+import loadDashboardData  from "../utils/loadDashboardData" // Import the data loader
 import { RiFocus2Line } from "react-icons/ri";
-import ProfileLink from "@/app/components/ProfileLink";
+import ProfileLink from "../components/ProfileLink";
 import { PiExam } from "react-icons/pi";
 import { MdOutlineAssignment } from "react-icons/md";
+import LoadingCard from "../components/LoadingCard"; // <-- New import for the loading card
+
 export default function Dashboard() {
     const [courses, setCourses] = useState([]);
     const [topics, setTopics] = useState([]);
@@ -28,6 +30,7 @@ export default function Dashboard() {
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [newGroup, setNewGroup] = useState({ title: "", description: "" });
     const [pendingInvitations, setPendingInvitations] = useState([]);
+    const [loading, setLoading] = useState(true); // <-- New loading state
 
     useEffect(() => {
         const fetchData = async () => {
@@ -44,6 +47,7 @@ export default function Dashboard() {
                 setPendingInvitations(data.pendingInvitations || []);
                 console.log("Study groups:", data.studyGroups); // Debug log
             }
+            setLoading(false); // <-- Mark loading complete once data is fetched
         };
 
         fetchData();
@@ -228,48 +232,55 @@ export default function Dashboard() {
             </div>
 
             <ul className="flex-wrap flex-row flex gap-4">
-                {courses.map((course) => {
-                    const counts = getUnfinishedCounts(course.id);
-                    return (
-                        <Card key={course.id} className="mb-2 flex flex-col relative group">
-                            <div className="w-fit">
-                                <Link href={`/course/${course.title}`} className="mr-4 text-xl font-bold">
-                                    {course.title}
-                                </Link>
-                                <div className="text-sm text-gray-600 mt-2 flex gap-2"><MdOutlineAssignment className="text-xl" alt="assignment"/>
-                                    <p>{counts.assignments}</p>
-                                </div>
-                            </div>
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-4">
-                                <button 
-                                    onClick={() => handleEditClick(course)}
-                                    className="text-gray-950 p-1 hover:bg-gray-100 rounded-full transition-colors"
-                                    title="Edit course"
-                                >
-                                    <CiEdit className="text-xl" />
-                                </button>
-                                <button 
-                                    onClick={() => handleDeleteClick(course.id)}
-                                    className="p-1 text-red-700 hover:bg-red-50 rounded-full transition-colors"
-                                    title="Delete course"
-                                >
-                                    <RiDeleteBin5Line className="text-xl" />
-                                </button>
+                {loading ? (
+                    // Show 3 loading cards while courses are loading
+                    [1,2,3].map((i) => (
+                        <LoadingCard key={i} className="mb-2 min-w-[250px]" />
+                    ))
+                ) : (
+                    courses.length > 0 ? (
+                        courses.map((course) => {
+                            const counts = getUnfinishedCounts(course.id);
+                            return (
+                                <Card key={course.id} className="mb-2 flex flex-col relative group">
+                                    <div className="w-fit">
+                                        <Link href={`/course/${course.title}`} className="mr-4 text-xl font-bold">
+                                            {course.title}
+                                        </Link>
+                                        <div className="text-sm text-gray-600 mt-2 flex gap-2"><MdOutlineAssignment className="text-xl" alt="assignment"/>
+                                            <p>{counts.assignments}</p>
+                                        </div>
+                                    </div>
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-4">
+                                        <button 
+                                            onClick={() => handleEditClick(course)}
+                                            className="text-gray-950 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                                            title="Edit course"
+                                        >
+                                            <CiEdit className="text-xl" />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteClick(course.id)}
+                                            className="p-1 text-red-700 hover:bg-red-50 rounded-full transition-colors"
+                                            title="Delete course"
+                                        >
+                                            <RiDeleteBin5Line className="text-xl" />
+                                        </button>
+                                    </div>
+                                </Card>
+                            );
+                        })
+                    ) : (
+                        // Empty state card for courses once loaded with no courses
+                        <Card className="mb-2 flex flex-col justify-center items-center p-6 min-w-[250px] border-2 border-dashed border-gray-300 bg-gray-50">
+                            <div className="text-center space-y-3">
+                                <h3 className="text-lg font-medium text-gray-700">No courses yet</h3>
+                                <p className="text-sm text-gray-500">
+                                    Click the + button above to create your first course
+                                </p>
                             </div>
                         </Card>
-                    );
-                })}
-                
-                {/* Empty state card for courses */}
-                {courses.length === 0 && (
-                    <Card className="mb-2 flex flex-col justify-center items-center p-6 min-w-[250px] border-2 border-dashed border-gray-300 bg-gray-50">
-                        <div className="text-center space-y-3">
-                            <h3 className="text-lg font-medium text-gray-700">No courses yet</h3>
-                            <p className="text-sm text-gray-500">
-                                Click the + button above to create your first course
-                            </p>
-                        </div>
-                    </Card>
+                    )
                 )}
             </ul>
             {/* Study Groups Section */}
@@ -277,7 +288,7 @@ export default function Dashboard() {
                 <h2 className="text-4xl font-bold m-4 mb-6">Study Groups</h2>
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500">
-                        {studyGroups.length} groups joined
+                        {loading ? "Loading..." : `${studyGroups.length} groups joined`}
                     </span>
                     <button
                       onClick={() => setIsCreatingGroup(true)}
@@ -289,24 +300,34 @@ export default function Dashboard() {
                 </div>
             </div>
             <ul className="flex flex-wrap gap-4">
-                {studyGroups.map((group) => (
-                    <Card key={group.id} className="mb-2 flex flex-col p-4 min-w-[200px]">
-                        <Link href={`/study-group/${group.id}`} className="text-xl font-bold mb-2">
-                            {group.title}
-                        </Link>
-                        <p className="text-gray-600 text-sm">{group.description}</p>
-                        <p className="text-xs text-gray-400 mt-2">
-                            Joined {new Date(group.created_at).toLocaleDateString()}
-                        </p>
-                    </Card>
-                ))}
-                {studyGroups.length === 0 && (
-                    <Card className="mb-2 flex flex-col justify-center items-center p-6 min-w-[250px] border-2 border-dashed border-gray-300 bg-gray-50">
-                        <h3 className="text-lg font-medium text-gray-700">
-                            You haven't joined any study group yet
-                        </h3>
-                        <p className="text-sm text-gray-500">Join a study group to collaborate with peers.</p>
-                    </Card>
+                {loading ? (
+                    // Show 2 loading cards while study groups are loading
+                    [1,2].map((i)=>(
+                        <LoadingCard key={i} className="mb-2 min-w-[250px]" />
+                    ))
+                ) : (
+                    studyGroups.length > 0 ? (
+                        studyGroups.map((group) => (
+                            <Card key={group.id} className="mb-2 flex flex-col p-4 min-w-[200px]">
+                                <Link href={`/study-group/${group.id}`} className="text-xl font-bold mb-2">
+                                    {group.title}
+                                </Link>
+                                <p className="text-gray-600 text-sm">{group.description}</p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                    Joined {new Date(group.created_at).toLocaleDateString()}
+                                </p>
+                            </Card>
+                        ))
+                    ) : (
+                        <Card className="mb-2 flex flex-col justify-center items-center p-6 min-w-[250px] border-2 border-dashed border-gray-300 bg-gray-50">
+                            <h3 className="text-lg font-medium text-gray-700">
+                                You haven't joined any study group yet
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                Join a study group to collaborate with peers.
+                            </p>
+                        </Card>
+                    )
                 )}
             </ul>
             <ProfileLink />

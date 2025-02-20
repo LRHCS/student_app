@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/app/utils/client";
+import { supabase } from "../../../../../../../utils/client";
 import { MdKeyboardArrowUp, MdKeyboardArrowDown, MdEdit, MdSave, MdClose } from 'react-icons/md';
 
 function NoteSummary({ lessonId, title }) {

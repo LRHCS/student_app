@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { DragProvider } from '@/app/contexts/DragContext';
+import { DragProvider } from '../../../../../../contexts/DragContext';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
-import { supabase } from "@/app/utils/client";
+import { supabase } from "../../../../../../utils/client";
 import { FaPlus } from 'react-icons/fa';
 import { 
     MdTitle, 
@@ -26,13 +26,12 @@ import {
     MdEdit
 } from 'react-icons/md';
 import BlockRenderer from './BlockRenderer';
-import DrawingLayer from '@/app/course/[title]/topic/[topic]/notes/[note]/components/DrawingLayer';
-import { isValidImageUrl } from '@/app/utils/imageUtils';
-import { useDrag } from '@/app/contexts/DragContext';
-import MindMap from '@/app/components/MindMap';
-import PracticeQuestion from '@/app/course/[title]/topic/[topic]/notes/[note]/components/PracticeQuestion';
-import NoteSummary from '@/app/course/[title]/topic/[topic]/notes/[note]/components/NoteSummary';
-import NoteFooter from '@/app/components/NoteFooter';
+import DrawingLayer from './components/DrawingLayer';
+import { isValidImageUrl } from '../../../../../../utils/imageUtils';
+import { useDrag } from '../../../../../../contexts/DragContext';
+import MindMap from './components/MindMap';
+import NoteFooter from './components/NoteFooter';
+import LoadingCard from '../../../../../../components/LoadingCard';
 
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
@@ -730,10 +729,8 @@ function NotePage({ params }) {
                             </div>
                         ) : (
                             <div className="flex items-center justify-center h-screen">
-
-                            <div className="w-16 h-16 border-8 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            
-                        </div>
+                                <LoadingCard className="min-w-[300px]" />
+                            </div>
                         )}                    
                         
                     </div>

@@ -2,12 +2,13 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { Card } from "@/app/UI";
+import { Card } from "../../UI";
 import { CiEdit } from "react-icons/ci";
 import { RiDeleteBin5Line } from "react-icons/ri";
 import { AiOutlinePlus } from "react-icons/ai";
-import { supabase } from "@/app/utils/client";
-import ProfileLink from "@/app/components/ProfileLink";
+import { supabase } from "../../utils/client";
+import ProfileLink from "../../components/ProfileLink";
+import LoadingCard from "../../components/LoadingCard";
 
 export default function Page({ params }) {
     const resolvedParams = use(params);
@@ -16,6 +17,9 @@ export default function Page({ params }) {
     const [courseId, setCourseId] = useState(null);
     const [exams, setExams] = useState([]);
     const [assignments, setAssignments] = useState([]);
+    const [loadingTopics, setLoadingTopics] = useState(true);
+    const [loadingExams, setLoadingExams] = useState(true);
+    const [loadingAssignments, setLoadingAssignments] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState("add"); // 'add', 'edit', 'delete', 'addExam', 'addAssignment'
     const [currentTopic, setCurrentTopic] = useState(null);
@@ -68,6 +72,7 @@ export default function Page({ params }) {
             }
 
             setTopics(topicsData);
+            setLoadingTopics(false);
         };
 
         fetchTopics();
@@ -113,43 +118,34 @@ export default function Page({ params }) {
                 lessonsMap[exam.id] = lessonData;
             }
             setExamLessons(lessonsMap);
+            setLoadingExams(false);
         };
 
         const fetchAssignments = async () => {
+            const topicIds = topics.map((topic) => topic.id);
             const { data: assignmentsData, error: assignmentsError } = await supabase
                 .from("Assignments")
                 .select("*")
                 .in("topicId", topicIds);
             if (assignmentsError) {
                 console.error("Error fetching assignments:", assignmentsError);
-                return;
-            }
-            
-            const today = new Date();
-            today.setHours(0, 0, 0, 0); // Set to start of day
-            
-            const upcomingAssignments = [];
-            for (const assignment of assignmentsData) {
-                const assignmentDate = new Date(assignment.date);
-                assignmentDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
-                
-                if (assignmentDate < today) {
-                    // For past assignments, update the status to finished (2) if not already set
-                    if (assignment.status !== 2) {
-                        const { error: updateError } = await supabase
-                            .from("Assignments")
-                            .update({ status: 2 })
-                            .eq("id", assignment.id);
-                        if (updateError) {
-                            console.error("Error updating assignment status:", updateError);
-                        }
+            } else {
+                // Optionally filter for upcoming assignments:
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const upcomingAssignments = [];
+                for (const assignment of assignmentsData) {
+                    const assignmentDate = new Date(assignment.date);
+                    assignmentDate.setHours(0, 0, 0, 0);
+                    if (assignmentDate >= today) {
+                        upcomingAssignments.push(assignment);
+                    } else {
+                        // Optionally update status for past assignments here...
                     }
-                    // Do not include past assignments in the list
-                } else {
-                    upcomingAssignments.push(assignment);
                 }
+                setAssignments(upcomingAssignments);
             }
-            setAssignments(upcomingAssignments);
+            setLoadingAssignments(false);
         };
 
         fetchExamsAndLessons();
@@ -421,21 +417,29 @@ export default function Page({ params }) {
 
             {/* Topics List */}
             <ul className="flex-wrap flex-row flex gap-4 mb-8">
-                {topics.map((topic) => (
-                    <Card key={topic.id} className="p-4 relative group flex items-center justify-between w-full">
-                        <Link href={`/course/${title}/topic/${topic.title}`} className="text-lg font-medium">
-                            {topic.title}
-                        </Link>
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
-                            <button onClick={() => openModal("edit", topic)} className="p-2 text-gray-950">
-                                <CiEdit />
-                            </button>
-                            <button onClick={() => openModal("delete", topic)} className="p-2 text-red-700 rounded">
-                                <RiDeleteBin5Line />
-                            </button>
-                        </div>
-                    </Card>
-                ))}
+                {loadingTopics ? (
+                    [1, 2, 3].map(i => (
+                        <LoadingCard key={i} className="mb-2 min-w-[250px]" />
+                    ))
+                ) : topics.length > 0 ? (
+                    topics.map((topic) => (
+                        <Card key={topic.id} className="p-4 relative group flex items-center justify-between w-full">
+                            <Link href={`/course/${title}/topic/${topic.title}`} className="text-lg font-medium">
+                                {topic.title}
+                            </Link>
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
+                                <button onClick={() => openModal("edit", topic)} className="p-2 text-gray-950">
+                                    <CiEdit />
+                                </button>
+                                <button onClick={() => openModal("delete", topic)} className="p-2 text-red-700 rounded">
+                                    <RiDeleteBin5Line />
+                                </button>
+                            </div>
+                        </Card>
+                    ))
+                ) : (
+                    <p>No topics found.</p>
+                )}
             </ul>
 
             <div className="flex w-full gap-4">
@@ -450,7 +454,11 @@ export default function Page({ params }) {
                             <AiOutlinePlus className="text-2xl" />
                         </button>
                     </div>
-                    {exams.length > 0 ? (
+                    {loadingExams ? (
+                        [1, 2].map(i => (
+                            <LoadingCard key={i} className="mb-2 min-w-[250px]" />
+                        ))
+                    ) : exams.length > 0 ? (
                         <ul className="mb-8">
                             {exams.map((exam) => (
                                 <li key={exam.id} className="p-4 border border-gray-300 rounded mb-4">
@@ -524,29 +532,24 @@ export default function Page({ params }) {
                             <AiOutlinePlus className="text-2xl" />
                         </button>
                     </div>
-                    {assignments.length > 0 ? (
+                    {loadingAssignments ? (
+                        [1, 2].map(i => (
+                            <LoadingCard key={i} className="mb-2 min-w-[250px]" />
+                        ))
+                    ) : assignments.length > 0 ? (
                         <ul className="mb-8">
                             {assignments.map((assignment) => (
-                                <li key={assignment.id} className="p-2 border rounded mb-2 border-gray-300">
+                                <li key={assignment.id} className="p-4 border border-gray-300 rounded mb-4">
                                     <div className="flex items-center justify-between">
-                                        <span>{assignment.title}</span>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="date"
-                                                value={assignment.date}
-                                                onChange={(e) => updateAssignmentDate(assignment.id, e.target.value)}
-                                                className="p-1 border rounded text-sm"
-                                            />
-                                            <select
-                                                value={assignment.status || 0}
-                                                onChange={(e) => updateAssignmentStatus(assignment.id, Number(e.target.value))}
-                                                className={`p-1 rounded text-sm ${getStatusText(assignment.status).color}`}
-                                            >
-                                                <option className="bg-gray-200" value={0}>Not Started</option>
-                                                <option className="bg-yellow-200" value={1}>In Progress</option>
-                                                <option className="bg-green-200" value={2}>Completed</option>
-                                            </select>
-                                        </div>
+                                        <Link href={`/assignment/${assignment.id}`} className="font-semibold hover:underline">
+                                            {assignment.title}
+                                        </Link>
+                                        <input
+                                            type="date"
+                                            value={assignment.date}
+                                            onChange={(e) => updateAssignmentDate(assignment.id, e.target.value)}
+                                            className="p-1 border rounded text-sm"
+                                        />
                                     </div>
                                 </li>
                             ))}

@@ -3,7 +3,7 @@
 "use client"
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/app/utils/client';
+import { supabase } from './utils/client';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 

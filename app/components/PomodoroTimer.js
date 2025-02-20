@@ -1,14 +1,22 @@
 "use client"
 import { useState, useEffect } from "react";
 
-const PomodoroTimer = () => {
+const PomodoroTimer = ({ initiallyMinimized = true, onStart, startOnSession = false }) => {
     // Use localStorage to load saved time lengths (simulating Profiles.work_time and Profiles.rest_time)
     // Also, add a mounted flag to prevent SSR/client hydration mismatches.
     const [mounted, setMounted] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(initiallyMinimized);
 
     useEffect(() => {
         setMounted(true);
     }, []);
+
+    useEffect(() => {
+        // Start timer automatically if startOnSession is true and component is not minimized
+        if (startOnSession && !initiallyMinimized && !isRunning) {
+            handleStart();
+        }
+    }, [startOnSession, initiallyMinimized]);
 
     const [workTime, setWorkTime] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -27,7 +35,6 @@ const PomodoroTimer = () => {
     const [timeLeft, setTimeLeft] = useState(workTime);
     const [isRunning, setIsRunning] = useState(false);
     const [isWorkSession, setIsWorkSession] = useState(true);
-    const [isMinimized, setIsMinimized] = useState(true);
 
     useEffect(() => {
         let timer;
@@ -68,8 +75,21 @@ const PomodoroTimer = () => {
         }
     };
 
+    const handleStart = () => {
+        setIsRunning(true);
+        if (onStart) {
+            onStart();
+        }
+    };
+
+    // Don't show the timer on the login page
+    if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+        return null;
+    }
+
     return mounted ? (
-        <div className="fixed bottom-4 right-4 z-50 border border-gray-600 rounded-lg ">
+        <div className={`${initiallyMinimized ? 'fixed bottom-4 right-4 z-50' : ''} 
+            ${!initiallyMinimized ? 'w-full' : ''}`}>
             <div className={`bg-white rounded-lg shadow-lg transition-all duration-300 ${
                 isMinimized ? 'w-[130px]' : 'w-[400px]'
             }`}>
@@ -79,7 +99,7 @@ const PomodoroTimer = () => {
                     onClick={() => setIsMinimized(!isMinimized)}
                 >
                     <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full  ${isRunning ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500' : 'bg-gray-400'}`} />
                         <span className="font-mono text-[1.5rem]">
                             {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:
                             {String(timeLeft % 60).padStart(2, "0")}
@@ -88,7 +108,11 @@ const PomodoroTimer = () => {
                     <button 
                         onClick={(e) => {
                             e.stopPropagation();
-                            setIsRunning(!isRunning);
+                            if (!isRunning) {
+                                handleStart();
+                            } else {
+                                setIsRunning(false);
+                            }
                         }}
                         className="text-gray-500 hover:text-gray-700"
                     >

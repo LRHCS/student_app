@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/app/utils/client';
+import { supabase } from '../../utils/client';
 
 const AddTaskModal = ({ isOpen, onClose, status, type, onAdd }) => {
     const [title, setTitle] = useState('');

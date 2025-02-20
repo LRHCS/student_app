@@ -8,6 +8,7 @@ import { PiExam } from "react-icons/pi";
 import { MdOutlineAssignment, MdDelete, MdEdit } from "react-icons/md";
 import { redirect } from "next/navigation";
 import { loadCalendarData } from "../../utils/loadCalendarData";
+import LoadingCard from "../LoadingCard";
 
 const getStatusText = (status) => {
     switch (status) {
@@ -135,6 +136,9 @@ const Calendar = () => {
     const [newExam, setNewExam] = useState({ title: "", date: "", topicId: "" });
     const [newAssignment, setNewAssignment] = useState({ title: "", date: "", topicId: "" });
 
+    // NEW: Loading state for the calendar data
+    const [loading, setLoading] = useState(true);
+
     // Helper function to initiate the drag event with item data.
     const handleDragStart = (e, item, type) => {
         e.dataTransfer.setData("application/json", JSON.stringify({ id: item.id, type }));
@@ -214,7 +218,6 @@ const Calendar = () => {
                             console.error("Error updating assignment status:", error);
                         }
                     }
-                    // Include past assignments with isPast flag
                     allAssignments.push({ ...assignment, status: 2, isPast: true });
                 } else {
                     allAssignments.push({ ...assignment, isPast: false });
@@ -225,6 +228,7 @@ const Calendar = () => {
             setAssignments(allAssignments);
             setCourses(data.courses);
             setTopics(data.topics);
+            setLoading(false);
         };
         fetchData();
     }, []);
@@ -236,6 +240,10 @@ const Calendar = () => {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
     const nextMonth = () =>
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
+    const goToCurrentMonth = () => {
+        setCurrentDate(new Date());
+    };
 
     const daysInMonth = new Date(
         currentDate.getFullYear(),
@@ -445,19 +453,42 @@ const Calendar = () => {
         setModalType("assignment");
     };
 
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <LoadingCard className="min-w-[300px]" />
+            </div>
+        );
+    }
+
     return (
         <div className="mx-auto p-4 rounded-lg">
             {/* Navigation header */}
-            <div className="flex justify-between items-center mb-4">
-                <button className="text-2xl" onClick={prevMonth}>
-                    <GrFormPreviousLink />
-                </button>
-                <h2 className="font-bold text-xl">
-                    {currentDate.toLocaleString("default", { month: "long", year: "numeric" })}
-                </h2>
-                <button className="text-2xl" onClick={nextMonth}>
-                    <GrFormNextLink />
-                </button>
+            <div className="flex justify-around items-center mb-4">
+                <div className="flex items-center gap-4">
+                    <button 
+                        className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors" 
+                        onClick={prevMonth}
+                    >
+                        <GrFormPreviousLink />
+                    </button>
+                    <h2 className="font-bold text-xl">
+                        {currentDate.toLocaleString("default", { month: "long", year: "numeric" })}
+                    </h2>                
+                    <button 
+                        onClick={goToCurrentMonth}
+                        className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                    >
+                        Today
+                    </button> 
+                    <button 
+                        className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors" 
+                        onClick={nextMonth}
+                    >
+                        <GrFormNextLink />
+                    </button>
+                </div>
+
             </div>
 
             {/* Calendar grid with responsive design */}

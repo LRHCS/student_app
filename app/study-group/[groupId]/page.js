@@ -3,11 +3,11 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { AiOutlineSend, AiOutlinePlus, AiOutlineCaretDown, AiOutlineCaretRight, AiOutlineEdit, AiOutlineDelete, AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
-import { supabase } from "@/app/utils/client";
+import { supabase } from "../../utils/client";
 import Link from "next/link";
-import AlertModal from "@/app/components/Modals/AlertModal";
-import PromptModal from "@/app/components/Modals/PromptModal";
-import ConfirmModal from "@/app/components/Modals/ConfirmModal";
+import AlertModal from "../../components/Modals/AlertModal";
+import PromptModal from "../../components/Modals/PromptModal";
+import ConfirmModal from "../../components/Modals/ConfirmModal";
 
 export default function StudyGroupPage() {
   const params = useParams();
@@ -1510,19 +1510,42 @@ export default function StudyGroupPage() {
           <div className="p-4 overflow-y-auto h-full">
             <h2 className="text-2xl font-semibold mb-4">Members</h2>
             <ul className="space-y-3">
-              {members.map((member) => (
-                <li key={member.user_id} className="flex items-center gap-3 p-2 border rounded transition-colors hover:bg-gray-50">
-                  <div className="w-12 h-12 relative">
-                  <Image
-                    src={member.avatar || "/default-avatar.png"}
-                    alt="avatar"
-                    fill = "true"
-                    className="rounded-full"
-                  />
-                  </div>
-                  <span>{member.username}</span>
-                </li>
-              ))}
+              {/* Show current user first */}
+              {members
+                .filter(member => member.user_id === currentUser?.id)
+                .map((member) => (
+                  <li key={member.user_id} className="flex items-center gap-3 p-2 border rounded transition-colors bg-blue-50 hover:bg-blue-100">
+                    <div className="w-12 h-12 relative">
+                      <Image
+                        src={member.avatar || "/default-avatar.png"}
+                        alt="avatar"
+                        fill="true"
+                        className="rounded-full"
+                      />
+                    </div>
+                    <div className="flex flex-col">
+                      <span>{member.username}</span>
+                      <span className="text-sm text-blue-600">You</span>
+                    </div>
+                  </li>
+                ))}
+
+              {/* Show other members */}
+              {members
+                .filter(member => member.user_id !== currentUser?.id)
+                .map((member) => (
+                  <li key={member.user_id} className="flex items-center gap-3 p-2 border rounded transition-colors hover:bg-gray-50">
+                    <div className="w-12 h-12 relative">
+                      <Image
+                        src={member.avatar || "/default-avatar.png"}
+                        alt="avatar"
+                        fill="true"
+                        className="rounded-full"
+                      />
+                    </div>
+                    <span>{member.username}</span>
+                  </li>
+                ))}
             </ul>
           </div>
         </div>

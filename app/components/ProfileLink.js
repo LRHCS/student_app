@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import { supabase } from "@/app/utils/client";
+import { supabase } from "../utils/client";
 import { RiFocus2Line } from "react-icons/ri";
 
 const ProfileLink = () => {

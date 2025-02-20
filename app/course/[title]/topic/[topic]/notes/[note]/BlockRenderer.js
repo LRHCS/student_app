@@ -21,9 +21,9 @@ import {
     MdFileDownload,
     MdEdit
 } from 'react-icons/md';
-import { supabase } from '@/app/utils/client';
+import { supabase } from '../../../../../../utils/client';
 import { v4 as uuidv4 } from 'uuid';
-import { useDrag } from '@/app/contexts/DragContext';
+import { useDrag } from '../../../../../../contexts/DragContext';
 
 const BLOCK_OPTIONS = [
     { type: 'text', icon: MdTextFields, label: 'Text' },

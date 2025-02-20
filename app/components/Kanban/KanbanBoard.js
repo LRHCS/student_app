@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { DndProvider, useDrop } from "react-dnd";
 import KanbanCard from "./KanbanCard";
-import { supabase } from "@/app/utils/client";
+import { supabase } from "../../utils/client";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { TouchBackend } from 'react-dnd-touch-backend';
 import EditTaskModal from "./EditTaskModal";
@@ -21,35 +21,27 @@ const statuses = [
 
 const KanbanBoard = ({ data }) => {
     const [currentUser, setCurrentUser] = useState(null);
+    const [tasks, setTasks] = useState([]);
 
-    // Add this useEffect to get the current user
+    // Update the useEffect to handle the user session and tasks
     useEffect(() => {
         const getCurrentUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            setCurrentUser(session?.user);
+            if (session?.user) {
+                setCurrentUser(session.user);
+                
+                // Process tasks only when we have both user and data
+                const userTasks = [
+                    ...(data.assignments || [])
+                        .map(a => ({ ...a, type: "assignment" })),
+                    ...(data.exams || [])
+                        .map(e => ({ ...e, type: "exam" }))
+                ];
+                setTasks(userTasks);
+            }
         };
         getCurrentUser();
-    }, []);
-
-    // Filter tasks to only show user's own items
-    const [tasks, setTasks] = useState(() => {
-        const userTasks = [
-            ...data.assignments.filter(a => a.user_id === currentUser?.id).map(a => ({ ...a, type: "assignment" })),
-            ...data.exams.filter(e => e.user_id === currentUser?.id)
-        ];
-        return userTasks;
-    });
-
-    // Update tasks when currentUser changes
-    useEffect(() => {
-        if (currentUser) {
-            const userTasks = [
-                ...data.assignments.filter(a => a.user_id === currentUser.id).map(a => ({ ...a, type: "assignment" })),
-                ...data.exams.filter(e => e.user_id === currentUser.id)
-            ];
-            setTasks(userTasks);
-        }
-    }, [currentUser, data]);
+    }, [data]);
 
     const [editingTask, setEditingTask] = useState(null);
     const [addingTask, setAddingTask] = useState(null);

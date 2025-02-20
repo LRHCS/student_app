@@ -7,7 +7,7 @@ const nextConfig = {
         hostname: '**', // Allow all domains - be careful with this in production
       },
     ],
-  },
+  }
 }
 
 module.exports = nextConfig

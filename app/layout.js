@@ -1,18 +1,20 @@
+import { Inter } from "next/font/google";
 import "./globals.css";
-import PomodoroTimer from './components/PomodoroTimer'
+import PomodoroTimer from "./components/PomodoroTimer";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Student App",
-  description: "..",
+  title: "Study Platform",
+  description: "A platform for effective studying",
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <head>
-      </head>
-      <body>
-          {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
+        {children}
+        <PomodoroTimer />
       </body>
     </html>
   );

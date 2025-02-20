@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { AiOutlinePlus } from "react-icons/ai";
-import { supabase } from "@/app/utils/client";
-import ProfileLink from "@/app/components/ProfileLink";
-import PracticeQuestionsList from "@/app/exam/[id]/PracticeQuestionsList";
+import { supabase } from "../../../../utils/client";
+import ProfileLink from "../../../../components/ProfileLink";
+import PracticeQuestionsList from "../../../../exam/[id]/PracticeQuestionsList";
+import LoadingCard from "../../../../components/LoadingCard";
+import { PiCardsFill } from "react-icons/pi";
 
 export default function Page({ params }) {
     const [lessons, setLessons] = useState([]);
     const [topicData, setTopicData] = useState(null);
+    const [assignments, setAssignments] = useState([]);
+    const [loadingAssignments, setLoadingAssignments] = useState(true);
 
     const pathname = usePathname();
     const router = useRouter();
@@ -33,7 +37,7 @@ export default function Page({ params }) {
             return;
         }
 
-        // Save topic data for use in PracticeQuestionsList
+        // Save topic data for use in PracticeQuestionsList and assignments fetching
         setTopicData(topic);
 
         const { data: lessons, error: lessonsError } = await supabase
@@ -106,6 +110,24 @@ export default function Page({ params }) {
         }
     };
 
+    // NEW: Fetch assignments for this topic once topicData is available.
+    useEffect(() => {
+        const fetchAssignments = async () => {
+            if (!topicData) return;
+            const { data, error } = await supabase
+                .from('Assignments')
+                .select('*')
+                .eq('topicId', topicData.id);
+            if (error) {
+                console.error('Error fetching assignments:', error);
+            } else {
+                setAssignments(data);
+            }
+            setLoadingAssignments(false);
+        };
+        fetchAssignments();
+    }, [topicData]);
+
     return (
         <div className="p-6 relative">
             <ProfileLink />
@@ -121,7 +143,9 @@ export default function Page({ params }) {
                 <span className="font-bold"> {topicTitle}</span>
             </div>
             <div className="flex items-center">
-                <h1 className="text-4xl font-bold m-4 mb-6 ml-0 align-middle text-center">{topicTitle} Notes</h1>
+                <h1 className="text-4xl font-bold m-4 mb-6 ml-0 align-middle text-center">
+                    {topicTitle} Notes
+                </h1>
                 <button
                     onClick={addLesson}
                     className="text-xl text-gray-500 bold hover:text-gray-700"
@@ -129,9 +153,38 @@ export default function Page({ params }) {
                     <AiOutlinePlus className="text-2xl"/>
                 </button>
             </div>
-            { topicData && <PracticeQuestionsList examId={topicData.id} /> }
+
+            {/* New Study Tools Section */}
+            <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {topicData && (
+                    <>
+                        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+                            <h2 className="text-2xl font-semibold mb-4">Practice Questions</h2>
+                            <PracticeQuestionsList examId={topicData.id} />
+                        </div>
+
+                        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-2xl font-semibold">Flashcards</h2>
+                                <Link 
+                                    href={`/flashcards?topicId=${topicData.id}`}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                >
+                                    <PiCardsFill
+                                    className="text-xl" />
+                                    <span>Study Now</span>
+                                </Link>
+                            </div>
+                            <p className="text-gray-600">
+                                Review key concepts and test your knowledge with interactive flashcards
+                            </p>
+                        </div>
+                    </>
+                )}
+            </div>
+
             <div>
-                <h2 className="text-2xl font-semibold mb-4"></h2>
+                <h2 className="text-2xl font-semibold mb-4">Lessons</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {lessons.map((lesson) => (
                         <div
@@ -160,6 +213,28 @@ export default function Page({ params }) {
                         </div>
                     ))}
                 </div>
+            </div>
+            {/* NEW: Assignments Section */}
+            <div className="mt-8">
+                <h2 className="text-2xl font-semibold mb-4">Assignments</h2>
+                {loadingAssignments ? (
+                    [1, 2].map(i => (
+                        <LoadingCard key={i} className="mb-2 min-w-[250px]" />
+                    ))
+                ) : assignments.length > 0 ? (
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {assignments.map(assignment => (
+                            <li key={assignment.id} className="p-4 border border-gray-300 rounded shadow-sm">
+                                <span className="font-medium">{assignment.title}</span>
+                                <span className="text-sm text-gray-500">
+                                    {assignment.date ? new Date(assignment.date).toLocaleDateString() : ''}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p>No assignments found.</p>
+                )}
             </div>
         </div>
     );

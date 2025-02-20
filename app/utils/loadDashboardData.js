@@ -1,7 +1,7 @@
 // src/utils/loadDashboardData.js
 import { supabase } from "./client";
 
-export async function loadDashboardData() {
+export default async function loadDashboardData() {
     try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError) throw userError;

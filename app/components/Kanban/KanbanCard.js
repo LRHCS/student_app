@@ -11,26 +11,27 @@ const KanbanCard = ({ task, onEdit, onDelete }) => {
     });
 
     const examUrl = task.type === "exam" ? `/exam/${task.id}` : "#";
+    const dueDate = task.date ? new Date(task.date) : null;
 
     return (
         <div
             ref={drag}
             className={`p-3 md:p-4 bg-white shadow-md rounded-lg ${
                 isDragging ? "opacity-50" : "opacity-100"
-            }`}
+            } hover:shadow-lg transition-shadow duration-200`}
         >
             <div className="flex justify-between items-start">
                 <div className="flex-1">
                     {task.type === "exam" ? (
                         <Link href={examUrl} className="text-lg font-semibold text-blue-600 hover:text-blue-800">
-                            {task.title}
+                            {task.title || "Untitled Exam"}
                         </Link>
                     ) : (
-                        <div className="font-semibold">{task.title}</div>
+                        <div className="font-semibold">{task.title || "Untitled Assignment"}</div>
                     )}
-                    {task.date && (
+                    {dueDate && (
                         <div className="text-xs md:text-sm text-gray-500">
-                            Due: {new Date(task.date).toLocaleDateString()}
+                            Due: {dueDate.toLocaleDateString()}
                         </div>
                     )}
                     {(task.topic_name || task.course_name) && (
