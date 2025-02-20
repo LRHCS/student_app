@@ -26,12 +26,12 @@ import {
     MdEdit
 } from 'react-icons/md';
 import BlockRenderer from './BlockRenderer';
-import DrawingLayer from '@/app/components/DrawingLayer';
+import DrawingLayer from '@/app/course/[title]/topic/[topic]/notes/[note]/components/DrawingLayer';
 import { isValidImageUrl } from '@/app/utils/imageUtils';
 import { useDrag } from '@/app/contexts/DragContext';
 import MindMap from '@/app/components/MindMap';
-import PracticeQuestion from '@/app/components/PracticeQuestion';
-import NoteSummary from '@/app/components/NoteSummary';
+import PracticeQuestion from '@/app/course/[title]/topic/[topic]/notes/[note]/components/PracticeQuestion';
+import NoteSummary from '@/app/course/[title]/topic/[topic]/notes/[note]/components/NoteSummary';
 import NoteFooter from '@/app/components/NoteFooter';
 
 // Dynamically import CodeMirror to avoid SSR issues

@@ -8,7 +8,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { MdDelete, MdKeyboardArrowUp, MdKeyboardArrowDown, MdEdit, MdCheck, MdClose } from "react-icons/md";
 import { AiOutlinePlus } from "react-icons/ai";
 import ProfileLink from "@/app/components/ProfileLink";
-import PracticeQuestionsList from "@/app/components/PracticeQuestionsList";
+import PracticeQuestionsList from "@/app/exam/[id]/PracticeQuestionsList";
 const STATUS_LABELS = {
     0: "Not Started",
     1: "In Progress",

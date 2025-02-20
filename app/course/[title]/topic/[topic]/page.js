@@ -6,7 +6,7 @@ import Link from "next/link";
 import { AiOutlinePlus } from "react-icons/ai";
 import { supabase } from "@/app/utils/client";
 import ProfileLink from "@/app/components/ProfileLink";
-import PracticeQuestionsList from "@/app/components/PracticeQuestionsList";
+import PracticeQuestionsList from "@/app/exam/[id]/PracticeQuestionsList";
 
 export default function Page({ params }) {
     const [lessons, setLessons] = useState([]);

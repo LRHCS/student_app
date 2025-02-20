@@ -5,7 +5,7 @@ import { Card } from "@/app/UI";
 import { CiEdit } from "react-icons/ci";
 import { RiDeleteBin5Line } from "react-icons/ri";
 import { AiOutlinePlus } from "react-icons/ai";
-import Calendar from "@/app/components/calendar";
+import Calendar from "@/app/components/Calendar/calendar";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/app/utils/client";
 import Image from "next/image";

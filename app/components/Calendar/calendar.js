@@ -1,13 +1,13 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { supabase } from "../utils/client";
+import { supabase } from "../../utils/client";
 import { IoMdAdd } from "react-icons/io";
 import { GrFormPreviousLink, GrFormNextLink } from "react-icons/gr";
 import Link from "next/link";
 import { PiExam } from "react-icons/pi";
 import { MdOutlineAssignment, MdDelete, MdEdit } from "react-icons/md";
 import { redirect } from "next/navigation";
-import { loadCalendarData } from "../utils/loadCalendarData";
+import { loadCalendarData } from "../../utils/loadCalendarData";
 
 const getStatusText = (status) => {
     switch (status) {
