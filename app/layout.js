@@ -1,6 +1,8 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import PomodoroTimer from "./components/PomodoroTimer";
+import { DarkModeProvider } from "./context/DarkModeContext";
+import Header from "./components/Header";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -13,8 +15,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        {children}
-        <PomodoroTimer />
+        <DarkModeProvider>
+          <Header />
+          <main className="pt-20">
+            {children}
+          </main>
+          <PomodoroTimer />
+        </DarkModeProvider>
       </body>
     </html>
   );

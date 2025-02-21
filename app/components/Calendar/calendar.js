@@ -468,7 +468,7 @@ const Calendar = () => {
             <div className="flex justify-around items-center mb-4">
                 <div className="flex items-center gap-4">
                     <button 
-                        className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors" 
+                        className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors dark:text-gray-100" 
                         onClick={prevMonth}
                     >
                         <GrFormPreviousLink />
@@ -483,7 +483,7 @@ const Calendar = () => {
                         Today
                     </button> 
                     <button 
-                        className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors" 
+                        className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors dark:text-gray-100" 
                         onClick={nextMonth}
                     >
                         <GrFormNextLink />
@@ -524,7 +524,7 @@ const Calendar = () => {
                                 handleDayClick(date, dayExams, isMobile);
                             }}
                             className={`border p-2 relative group cursor-pointer border border-gray-300 rounded-lg p-2
-                                ${date === new Date().toISOString().split('T')[0] ? "bg-gray-300 rounded" : ""}
+                                ${date === new Date().toISOString().split('T')[0] ? "bg-gray-300 rounded " : ""}
                                 sm:min-h-24 min-h-12 rounded-lg `}
                         >
                             {/* Add button */}
@@ -539,7 +539,7 @@ const Calendar = () => {
                             </button>
 
                             <div className="flex flex-col items-center sm:items-start">
-                                <span>
+                                <span className="">
                                     {new Date(currentDate.getFullYear(), currentDate.getMonth(), day + 1).getDate()}
                                 </span>
                                 
