@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { DndProvider, useDrop } from "react-dnd";
 import KanbanCard from "./KanbanCard";
-import { supabase } from "../../utils/client";
+import { supabase } from "../../utils/supabase/client";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { TouchBackend } from 'react-dnd-touch-backend';
 import EditTaskModal from "./EditTaskModal";

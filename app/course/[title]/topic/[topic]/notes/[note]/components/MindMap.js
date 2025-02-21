@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { supabase } from '../../../../../../../utils/client';
+import { supabase } from '../../../../../../../utils/supabase/client';
 
 const Node = ({ node, onDragStart, onDragEnd, onDrag, selected, onClick, onDoubleClick, onConnectionStart, onConnectionEnd, isConnecting, panOffset, onDelete }) => {
     const nodeRef = useRef(null);

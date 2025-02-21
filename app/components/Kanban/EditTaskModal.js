@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../utils/client';
+import { supabase } from '../../utils/supabase/client';
 
 const EditTaskModal = ({ isOpen, onClose, task, onUpdate }) => {
     const [title, setTitle] = useState(task?.title || '');

@@ -1,5 +1,5 @@
 // src/utils/loadDashboardData.js
-import { supabase } from "./client";
+import { supabase } from "./supabase/client";
 
 export default async function loadDashboardData() {
     try {

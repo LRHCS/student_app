@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { supabase } from "../../utils/client";
+import { supabase } from "../../utils/supabase/client";
 import { IoMdAdd } from "react-icons/io";
 import { GrFormPreviousLink, GrFormNextLink } from "react-icons/gr";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { MdOutlineAssignment, MdDelete, MdEdit } from "react-icons/md";
 import { redirect } from "next/navigation";
 import { loadCalendarData } from "../../utils/loadCalendarData";
 import LoadingCard from "../LoadingCard";
+import { AiOutlineEdit, AiOutlineDelete } from "react-icons/ai";
 
 const getStatusText = (status) => {
     switch (status) {
@@ -558,24 +559,51 @@ const Calendar = () => {
                                 </div>
 
                                 {/* Full content for larger screens */}
-                                <div className="hidden xl:block w-full ">
+                                <div className="hidden xl:block w-full">
                                     {dayExams.map((item) => (
                                         <div 
                                             key={`exam-${item.id}`}
                                             draggable={true}
                                             onDragStart={(e) => handleDragStart(e, item, "exam")}
-                                            onClick={(e) => handleExamClick(e, item.id)}
-                                            className={`flex items-center justify-between mt-1 p-1 text-sm border rounded-lg  
+                                            className={`flex items-center justify-between mt-1 p-1 text-sm rounded-lg 
                                                 ${item.isPast 
                                                     ? 'bg-gray-100 text-gray-500 border-none' 
-                                                    : 'hover:bg-gray-300'} cursor-pointer border-none`}
+                                                    : 'hover:bg-gray-100'} cursor-pointer relative`}
                                             onMouseEnter={() => setHoveredExamId(item.id)}
                                             onMouseLeave={() => setHoveredExamId(null)}
                                         >
-                                            <div className="flex items-center gap-2 border w-full border-gray-400 rounded-lg p-2">
+                                            <div 
+                                                onClick={(e) => handleExamClick(e, item.id)}
+                                                className="flex items-center gap-2 w-full border border-gray-400 rounded-lg p-2"
+                                            >
                                                 <PiExam className="text-xl" />
                                                 {item.title}
                                             </div>
+                                            {/* Hover Actions - Only show when this specific item is hovered */}
+                                            {hoveredExamId === item.id && (
+                                                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white shadow-md rounded-md p-1 mr-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEditExam(item);
+                                                        }}
+                                                        className="p-1 hover:bg-gray-100 rounded-full text-gray-600"
+                                                        title="Edit"
+                                                    >
+                                                        <AiOutlineEdit size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteExam(item.id);
+                                                        }}
+                                                        className="p-1 hover:bg-gray-100 rounded-full text-red-500"
+                                                        title="Delete"
+                                                    >
+                                                        <AiOutlineDelete size={16} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                     {dayAssignments.map((item) => (
@@ -583,18 +611,44 @@ const Calendar = () => {
                                             key={`assignment-${item.id}`}
                                             draggable={true}
                                             onDragStart={(e) => handleDragStart(e, item, "assignment")}
-                                            className={`flex flex-col gap-1 mt-1 p-1 text-sm border rounded-lg 
+                                            className={`flex flex-col gap-1 mt-1 p-1 text-sm rounded-lg 
                                                 ${item.isPast 
                                                     ? 'bg-gray-100 text-gray-500 border-none' 
-                                                    : 'hover:bg-gray-300'} cursor-pointer border-none`}
+                                                    : 'hover:bg-gray-100'} cursor-pointer relative`}
                                             onMouseEnter={() => setHoveredAssignmentId(item.id)}
                                             onMouseLeave={() => setHoveredAssignmentId(null)}
-                                            onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="flex flex-col gap-1 border border-gray-400 rounded-lg p-2">
-                                                <div className="flex items-center gap-2">
-                                                    <MdOutlineAssignment className="text-xl" />
-                                                    {item.title}
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <MdOutlineAssignment className="text-xl" />
+                                                        {item.title}
+                                                    </div>
+                                                    {/* Hover Actions - Only show when this specific item is hovered */}
+                                                    {hoveredAssignmentId === item.id && (
+                                                        <div className="flex items-center gap-1">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEditAssignment(item);
+                                                                }}
+                                                                className="p-1 hover:bg-gray-100 rounded-full text-gray-600"
+                                                                title="Edit"
+                                                            >
+                                                                <AiOutlineEdit size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteAssignment(item.id);
+                                                                }}
+                                                                className="p-1 hover:bg-gray-100 rounded-full text-red-500"
+                                                                title="Delete"
+                                                            >
+                                                                <AiOutlineDelete size={16} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <select

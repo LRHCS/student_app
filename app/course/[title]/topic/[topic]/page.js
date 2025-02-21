@@ -1,241 +1,73 @@
-"use client";
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import TopicClient from './TopicClient';
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
-import { AiOutlinePlus } from "react-icons/ai";
-import { supabase } from "../../../../utils/client";
-import ProfileLink from "../../../../components/ProfileLink";
-import PracticeQuestionsList from "../../../../exam/[id]/PracticeQuestionsList";
-import LoadingCard from "../../../../components/LoadingCard";
-import { PiCardsFill } from "react-icons/pi";
+export default async function TopicPage({ params }) {
 
-export default function Page({ params }) {
-    const [lessons, setLessons] = useState([]);
-    const [topicData, setTopicData] = useState(null);
-    const [assignments, setAssignments] = useState([]);
-    const [loadingAssignments, setLoadingAssignments] = useState(true);
+    
+    const {topic} = await params;
+    const {title} = await params;
 
-    const pathname = usePathname();
-    const router = useRouter();
-    const topicTitle = decodeURIComponent(pathname.split("/").pop());
-    const courseTitle = decodeURIComponent(pathname.split("/")[2]);
+    const topicTitle = decodeURIComponent(topic);
+    const courseTitle = decodeURIComponent(title);
 
-    useEffect(() => {
-        fetchLessons();
-    }, [topicTitle]);
+    // Wait for cookies to be available
+    const cookieStore = await cookies();
+    const supabase = createServerComponentClient({ cookies: () => cookieStore });
 
-    const fetchLessons = async () => {
+    // Check authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+        redirect('/');
+    }
+
+    try {
+        // Fetch topic data
         const { data: topic, error: topicError } = await supabase
             .from('Topics')
-            .select('id')
+            .select('*')
             .eq('title', topicTitle)
             .single();
 
-        if (topicError) {
-            console.error('Error fetching topic:', topicError);
-            return;
-        }
+        if (topicError) throw topicError;
 
-        // Save topic data for use in PracticeQuestionsList and assignments fetching
-        setTopicData(topic);
-
+        // Fetch lessons for this topic
         const { data: lessons, error: lessonsError } = await supabase
             .from('Lessons')
             .select('*')
             .eq('topic_id', topic.id)
             .order('id', { ascending: true });
 
-        if (lessonsError) {
-            console.error('Error fetching lessons:', lessonsError);
-        } else {
-            setLessons(lessons);
-        }
-    };
+        if (lessonsError) throw lessonsError;
 
-    const addLesson = async () => {
-        const newLessonTitle = prompt("Enter the new lesson title:");
-        if (!newLessonTitle) return;
+        // Fetch assignments for this topic
+        const { data: assignments, error: assignmentsError } = await supabase
+            .from('Assignments')
+            .select('*')
+            .eq('topicId', topic.id);
 
-        const { data: topic, error: topicError } = await supabase
-            .from('Topics')
-            .select('id')
-            .eq('title', topicTitle)
-            .single();
+        if (assignmentsError) throw assignmentsError;
 
-        if (topicError) {
-            console.error('Error fetching topic:', topicError);
-            return;
-        }
+        // Format dates for assignments
+        const formattedAssignments = assignments.map(assignment => ({
+            ...assignment,
+            date: assignment.date ? new Date(assignment.date).toLocaleDateString() : ''
+        }));
 
-        const { data, error } = await supabase
-            .from('Lessons')
-            .insert([{ title: newLessonTitle, topic_id: topic.id }])
-            .select();
-
-        if (error) {
-            console.error('Error adding lesson:', error);
-        } else {
-            setLessons([...lessons, data[0]]);
-        }
-    };
-
-    const deleteLesson = async (lessonId) => {
-        const { error } = await supabase
-            .from('Lessons')
-            .delete()
-            .eq('id', lessonId);
-
-        if (error) {
-            console.error('Error deleting lesson:', error);
-        } else {
-            setLessons(lessons.filter(lesson => lesson.id !== lessonId));
-        }
-    };
-
-    const updateLessonTitle = async (lessonId, newTitle) => {
-        if (!newTitle) return;
-
-        const { error } = await supabase
-            .from('Lessons')
-            .update({ title: newTitle })
-            .eq('id', lessonId);
-
-        if (error) {
-            console.error('Error updating lesson title:', error);
-        } else {
-            setLessons(lessons.map(lesson =>
-                lesson.id === lessonId ? { ...lesson, title: newTitle } : lesson
-            ));
-        }
-    };
-
-    // NEW: Fetch assignments for this topic once topicData is available.
-    useEffect(() => {
-        const fetchAssignments = async () => {
-            if (!topicData) return;
-            const { data, error } = await supabase
-                .from('Assignments')
-                .select('*')
-                .eq('topicId', topicData.id);
-            if (error) {
-                console.error('Error fetching assignments:', error);
-            } else {
-                setAssignments(data);
-            }
-            setLoadingAssignments(false);
+        const initialData = {
+            topic,
+            lessons,
+            assignments: formattedAssignments,
+            courseTitle,
+            topicTitle
         };
-        fetchAssignments();
-    }, [topicData]);
 
-    return (
-        <div className="p-6 relative">
-            <ProfileLink />
-            <div className="mb-6">
-                <Link href="../../.." className="hover:underline ">
-                    Dashboard
-                </Link>
-                <span> / </span>
-                <Link href=".." className="hover:underline ">
-                     {courseTitle}
-                </Link>
-                <span> /</span>
-                <span className="font-bold"> {topicTitle}</span>
-            </div>
-            <div className="flex items-center">
-                <h1 className="text-4xl font-bold m-4 mb-6 ml-0 align-middle text-center">
-                    {topicTitle} Notes
-                </h1>
-                <button
-                    onClick={addLesson}
-                    className="text-xl text-gray-500 bold hover:text-gray-700"
-                >
-                    <AiOutlinePlus className="text-2xl"/>
-                </button>
-            </div>
+        return <TopicClient initialData={initialData} />;
 
-            {/* New Study Tools Section */}
-            <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                {topicData && (
-                    <>
-                        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                            <h2 className="text-2xl font-semibold mb-4">Practice Questions</h2>
-                            <PracticeQuestionsList examId={topicData.id} />
-                        </div>
-
-                        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-2xl font-semibold">Flashcards</h2>
-                                <Link 
-                                    href={`/flashcards?topicId=${topicData.id}`}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                                >
-                                    <PiCardsFill
-                                    className="text-xl" />
-                                    <span>Study Now</span>
-                                </Link>
-                            </div>
-                            <p className="text-gray-600">
-                                Review key concepts and test your knowledge with interactive flashcards
-                            </p>
-                        </div>
-                    </>
-                )}
-            </div>
-
-            <div>
-                <h2 className="text-2xl font-semibold mb-4">Lessons</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {lessons.map((lesson) => (
-                        <div
-                            key={lesson.id}
-                            className="p-4 border border-gray-300 rounded shadow-sm flex flex-col"
-                        >
-                            <input
-                                className="text-lg font-medium mb-2 p-2"
-                                value={lesson.title}
-                                onChange={(e) => updateLessonTitle(lesson.id, e.target.value)}
-                            />
-                            <div className="mt-auto flex justify-between items-center">
-                                <Link
-                                    href={`${pathname}/notes/${lesson.id}`}
-                                    className="font-bold underline"
-                                >
-                                    Open Notes
-                                </Link>
-                                <button
-                                    onClick={() => deleteLesson(lesson.id)}
-                                    className="p-2 border rounded-lg border-gray-500"
-                                >
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            {/* NEW: Assignments Section */}
-            <div className="mt-8">
-                <h2 className="text-2xl font-semibold mb-4">Assignments</h2>
-                {loadingAssignments ? (
-                    [1, 2].map(i => (
-                        <LoadingCard key={i} className="mb-2 min-w-[250px]" />
-                    ))
-                ) : assignments.length > 0 ? (
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {assignments.map(assignment => (
-                            <li key={assignment.id} className="p-4 border border-gray-300 rounded shadow-sm">
-                                <span className="font-medium">{assignment.title}</span>
-                                <span className="text-sm text-gray-500">
-                                    {assignment.date ? new Date(assignment.date).toLocaleDateString() : ''}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <p>No assignments found.</p>
-                )}
-            </div>
-        </div>
-    );
+    } catch (error) {
+        console.error('Error loading topic:', error);
+        redirect(`/course/${courseTitle}`);
+    }
 }

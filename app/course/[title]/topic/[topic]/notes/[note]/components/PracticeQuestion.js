@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, forwardRef } from "react";
-import { supabase } from "../../../../../../../utils/client";
+import { supabase } from "../../../../../../../utils/supabase/client";
 import { MdKeyboardArrowUp, MdKeyboardArrowDown, MdAdd } from 'react-icons/md';
 
 function PracticeQuestion({ lessonId, title }, ref) {

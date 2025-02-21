@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../utils/client';
+import { supabase } from '../../utils/supabase/client';
 
 const AddExamModal = ({ isOpen, onClose, status, onAdd }) => {
     const [title, setTitle] = useState('');

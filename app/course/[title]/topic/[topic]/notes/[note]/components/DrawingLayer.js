@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from 'react';
-import { supabase } from "../../../../../../../utils/client";
+import { supabase } from "../../../../../../../utils/supabase/client";
 import { MdBrush, MdOutlineColorize, MdOutlineFormatColorReset } from 'react-icons/md';
 import { BsEraser } from 'react-icons/bs';
 

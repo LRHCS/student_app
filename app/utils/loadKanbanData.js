@@ -1,5 +1,5 @@
 // src/utils/loadLearningSessionData.js
-import { supabase } from "../utils/client";
+import { supabase } from "./supabase/client";
 
 export async function loadKanbanData() {
     // Get current user session

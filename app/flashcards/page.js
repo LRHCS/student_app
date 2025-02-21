@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "../utils/client";
+import { supabase } from "../utils/supabase/client";
 import { MdKeyboardArrowLeft, MdKeyboardArrowRight } from "react-icons/md";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";

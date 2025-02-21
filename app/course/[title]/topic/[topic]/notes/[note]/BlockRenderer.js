@@ -21,7 +21,7 @@ import {
     MdFileDownload,
     MdEdit
 } from 'react-icons/md';
-import { supabase } from '../../../../../../utils/client';
+import { supabase } from '../../../../../../utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { useDrag } from '../../../../../../contexts/DragContext';
 
