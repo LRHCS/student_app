@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "..//UI";
 import { CiEdit } from "react-icons/ci";
@@ -13,6 +13,7 @@ import ProfileLink from "../components//Header";
 import { MdOutlineAssignment } from "react-icons/md";
 import LoadingCard from "../components//LoadingCard";
 import Image from 'next/image';
+import { useRouter } from "next/navigation";
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -38,6 +39,14 @@ export default function DashboardClient({ initialData }) {
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [newGroup, setNewGroup] = useState({ title: "", description: "" });
     const [error, setError] = useState(null);
+
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!initialData) {
+            router.refresh();
+        }
+    }, [initialData, router]);
 
     if (error) {
         return (

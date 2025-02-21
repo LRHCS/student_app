@@ -573,7 +573,7 @@ const BlockRenderer = ({
 
         switch (block.type) {   
             case 'text':
-                return <textarea {...commonProps} />;
+                return <textarea {...commonProps} className='bg-transparent'/>;
             case 'heading':
                 return (
                     <textarea
@@ -1059,7 +1059,7 @@ const BlockRenderer = ({
                                 }}
                                 onInput={(e) => adjustTextareaHeight(e.target)}
                                 onKeyDown={handleKeyDown}
-                                className="w-full resize-none overflow-hidden border-none focus:ring-0 p-0 leading-[1.5] min-h-[1em]"
+                                className="w-full resize-none overflow-hidden bg-transparent  border-none focus:ring-0 p-0 leading-[1.5] min-h-[1em]"
                                 placeholder="Toggle header..."
                             />
                         </div>
@@ -1075,7 +1075,7 @@ const BlockRenderer = ({
                                         adjustTextareaHeight(e.target);
                                     }}
                                     onInput={(e) => adjustTextareaHeight(e.target)}
-                                    className="w-full resize-none overflow-hidden border-none focus:ring-0 p-0 leading-[1.5] min-h-[1em]"
+                                    className="w-full resize-none overflow-hidden bg-transparent border-none focus:ring-0 p-0 leading-[1.5] min-h-[1em]"
                                     placeholder="Toggle content..."
                                 />
                             </div>
@@ -1220,7 +1220,7 @@ const BlockRenderer = ({
                                 value={block.content}
                                 onChange={(e) => onChange(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                className={`w-full p-2 border-none focus:ring-0 resize-none overflow-hidden ${
+                                className={`w-full p-2 border-none focus:ring-0 resize-none overflow-hidden bg-transparent ${
                                     block.type === 'heading' 
                                         ? block.properties?.level === 'h2' 
                                             ? 'text-2xl font-bold' 
@@ -1439,7 +1439,7 @@ const BlockRenderer = ({
                                 }}
                                 onInput={(e) => adjustTextareaHeight(e.target)}
                                 onKeyDown={handleKeyDown}
-                                className="w-full resize-none overflow-hidden border-none focus:ring-0 p-0 leading-[1.5] min-h-[1em]"
+                                className="w-full resize-none overflow-hidden border-none bg-transparent focus:ring-0 p-0 leading-[1.5] min-h-[1em]"
                                 placeholder="Toggle header..."
                             />
                         </div>
