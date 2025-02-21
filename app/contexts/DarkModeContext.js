@@ -20,8 +20,8 @@ export function DarkModeProvider({ children }) {
     if (isDarkMode) {
       enable({
         brightness: 100,
-        contrast: 90,
-        sepia: 10
+        contrast: 100,
+        sepia: 0
       })
     } else {
       disable()

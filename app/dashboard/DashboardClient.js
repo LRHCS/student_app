@@ -229,11 +229,7 @@ export default function DashboardClient({ initialData }) {
                     </button>
                 </div>
 
-                <div>
-                    <Link href="/lsession" className="underline bold absolute top-4 right-20 text-5xl ">
-                        <RiFocus2Line />
-                    </Link>
-                </div>
+
             </div>
 
             <ul className="flex-wrap flex-row flex gap-4">

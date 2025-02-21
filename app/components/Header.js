@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { RiFocus2Line } from "react-icons/ri";
 import { fetchUserData } from "../CRUD";
-import { useDarkMode } from '../context/DarkModeContext';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
 const Header = () => {
   const [userData, setUserData] = useState(null);
@@ -16,13 +16,7 @@ const Header = () => {
   }, []);
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-20  shadow-md z-50 bg-white">
-      <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
-        {/* Logo or Brand */}
-        <Link href="/" className="text-xl font-bold">
-          Study 
-        </Link>
-
+      <div className="max-w-7xl mx-auto px-4 flex items-center justify-between absolute top-4 right-4">
         {/* Right side controls */}
         <div className="flex items-center gap-4">
           {/* Dark Mode Toggle */}
@@ -73,7 +67,6 @@ const Header = () => {
           )}
         </div>
       </div>
-    </header>
   );
 };
 

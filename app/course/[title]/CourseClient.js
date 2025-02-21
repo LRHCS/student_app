@@ -6,8 +6,7 @@ import { CiEdit } from "react-icons/ci";
 import { RiDeleteBin5Line } from "react-icons/ri";
 import { AiOutlinePlus } from "react-icons/ai";
 import { supabase } from "../../utils/supabase/client";
-import ProfileLink from "../../components/Header";
-import LoadingCard from "../../components/LoadingCard";
+import Header from "../../components/Header";
 
 // Helper function for status text
 const getStatusText = (status) => {
@@ -260,13 +259,13 @@ export default function CourseClient({ initialData }) {
 
     return (
         <div className="p-4 relative">
-            <ProfileLink />
 
             <Link href="../../dashboard" className="hover:underline mb-4 inline-block">
                 Dashboard
             </Link>
             <span> /</span>
             <span className="font-bold"> {initialData.title}</span>
+            <Header />
 
             <div className="flex items-center">
                 <h1 className="text-4xl font-bold m-4 mb-6 ml-0 align-middle text-center">
