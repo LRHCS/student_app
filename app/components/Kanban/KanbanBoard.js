@@ -6,6 +6,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { TouchBackend } from 'react-dnd-touch-backend';
 import EditTaskModal from "./EditTaskModal";
 import AddTaskModal from "./AddTaskModal";
+import CustomDragLayer from "./CustomDragLayer";
 
 // Add a function to detect touch device
 const isTouchDevice = () => {
@@ -258,12 +259,15 @@ const KanbanBoard = ({ data }) => {
     );
 
     return (
-        <DndProvider backend={isTouchDevice() ? TouchBackend : HTML5Backend}>
+        <DndProvider
+            backend={isTouchDevice() ? TouchBackend : HTML5Backend}
+            options={isTouchDevice() ? { enableMouseEvents: true } : undefined}
+        >
             <div className="">
                 <StatusSelector />
                 <div className="">
                     {/* Mobile: Show only selected status */}
-                    <div className="md:hidden">
+                    <div className="lg:hidden">
                         <KanbanColumn 
                             status={statuses[selectedStatus]} 
                             tasks={tasks} 
@@ -272,7 +276,7 @@ const KanbanBoard = ({ data }) => {
                     </div>
 
                     {/* Desktop: Show all statuses */}
-                    <div className="hidden md:grid md:grid-cols-3 md:gap-4">
+                    <div className="hidden lg:grid lg:grid-cols-3 lg:gap-4">
                         {statuses.map((status) => (
                             <KanbanColumn 
                                 key={status.id} 
@@ -300,6 +304,7 @@ const KanbanBoard = ({ data }) => {
                 type={addingTaskType}
                 onAdd={handleAddTask}
             />
+            <CustomDragLayer />
         </DndProvider>
     );
 };

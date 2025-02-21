@@ -7,7 +7,7 @@ import { DragProvider } from '../../../../../../contexts/DragContext';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
 import { supabase } from "../../../../../../utils/client";
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus, FaShare } from 'react-icons/fa';
 import { 
     MdTitle, 
     MdFormatListBulleted, 
@@ -94,6 +94,9 @@ function NotePage({ params }) {
     const [showMindMap, setShowMindMap] = useState(true);
     const [isSmallScreen, setIsSmallScreen] = useState(false);
     const mindMapRef = useRef(null);
+    const [showShareDialog, setShowShareDialog] = useState(false);
+    const [shareUrl, setShareUrl] = useState('');
+    const [isSharing, setIsSharing] = useState(false);
 
     const courseTitle = decodeURIComponent(pathname.split('/')[2]);
     const topicTitle = decodeURIComponent(pathname.split('/')[4]);
@@ -636,6 +639,53 @@ function NotePage({ params }) {
         });
     };
 
+    const generateShareUrl = () => {
+        // Create a special URL format that includes a share token
+        const baseUrl = window.location.origin;
+        const sharePath = pathname.replace('/notes/', '/shared/');
+        return `${baseUrl}${sharePath}`;
+    };
+
+    const handleShare = async () => {
+        setIsSharing(true);
+        try {
+            // Add the current user to the shared_list
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('Not authenticated');
+
+            const { error } = await supabase
+                .from('Lessons')
+                .update({
+                    shared_list: supabase.sql`
+                        coalesce(shared_list, '[]'::jsonb) || ${JSON.stringify([user.id])}::jsonb
+                    `
+                })
+                .eq('id', lessonId);
+
+            if (error) throw error;
+
+            // Generate and set the share URL
+            const url = generateShareUrl();
+            setShareUrl(url);
+            setShowShareDialog(true);
+        } catch (error) {
+            console.error('Error sharing note:', error);
+            alert('Failed to share note');
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    const copyToClipboard = async () => {
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            alert('Share link copied to clipboard!');
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            alert('Failed to copy link');
+        }
+    };
+
     return (
         <div className="flex flex-col bg-white h-screen overflow-hidden">
             <div className="sticky top-0 z-50 bg-gray-100 shadow-sm">
@@ -670,6 +720,14 @@ function NotePage({ params }) {
                             title="Toggle drawing mode"
                         >
                             <MdEdit className="text-xl" />
+                        </button>
+                        <button
+                            onClick={handleShare}
+                            className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+                            title="Share note"
+                            disabled={isSharing}
+                        >
+                            <FaShare className="text-xl" />
                         </button>
                     </div>
                 </div>
@@ -815,6 +873,36 @@ function NotePage({ params }) {
                                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                             >
                                 Convert to Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showShareDialog && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+                        <h3 className="text-lg font-semibold mb-4">Share Note</h3>
+                        <div className="flex items-center gap-2 mb-4">
+                            <input
+                                type="text"
+                                value={shareUrl}
+                                readOnly
+                                className="flex-1 p-2 border rounded"
+                            />
+                            <button
+                                onClick={copyToClipboard}
+                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            >
+                                Copy
+                            </button>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setShowShareDialog(false)}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>

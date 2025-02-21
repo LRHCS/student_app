@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { useDrag } from "react-dnd";
 
@@ -16,9 +17,8 @@ const KanbanCard = ({ task, onEdit, onDelete }) => {
     return (
         <div
             ref={drag}
-            className={`p-3 md:p-4 bg-white shadow-md rounded-lg ${
-                isDragging ? "opacity-50" : "opacity-100"
-            } hover:shadow-lg transition-shadow duration-200`}
+            style={{ opacity: isDragging ? 0.5 : 1 }}
+            className="bg-white p-4 rounded shadow mb-2 cursor-move"
         >
             <div className="flex justify-between items-start">
                 <div className="flex-1">

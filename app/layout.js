@@ -5,7 +5,7 @@ import PomodoroTimer from "./components/PomodoroTimer";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Study Platform",
+  title: "Study",
   description: "A platform for effective studying",
 };
 
