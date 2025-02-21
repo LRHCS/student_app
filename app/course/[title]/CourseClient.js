@@ -262,7 +262,7 @@ export default function CourseClient({ initialData }) {
         <div className="p-4 relative">
             <ProfileLink />
 
-            <Link href="/dashboard" className="hover:underline mb-4 inline-block">
+            <Link href="../../dashboard" className="hover:underline mb-4 inline-block">
                 Dashboard
             </Link>
             <span> /</span>

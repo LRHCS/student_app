@@ -67,7 +67,7 @@ export default function TopicClient({ initialData }) {
         <div className="p-6 relative">
             <ProfileLink />
             <div className="mb-6">
-                <Link href="../../.." className="hover:underline">
+                <Link href="../../../" className="hover:underline">
                     Dashboard
                 </Link>
                 <span> / </span>

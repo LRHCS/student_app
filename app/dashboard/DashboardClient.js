@@ -12,6 +12,7 @@ import { RiFocus2Line } from "react-icons/ri";
 import ProfileLink from "../components//Header";
 import { MdOutlineAssignment } from "react-icons/md";
 import LoadingCard from "../components//LoadingCard";
+import Image from 'next/image';
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -36,6 +37,15 @@ export default function DashboardClient({ initialData }) {
     const [editingCourse, setEditingCourse] = useState(null);
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [newGroup, setNewGroup] = useState({ title: "", description: "" });
+    const [error, setError] = useState(null);
+
+    if (error) {
+        return (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-600">Error: {error.message}</p>
+            </div>
+        );
+    }
 
     if (!initialData) {
         return (

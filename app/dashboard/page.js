@@ -17,22 +17,19 @@ export default async function DashboardPage() {
     try {
         const supabase = createServerComponentClient({ cookies });
         
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Get authenticated user data securely
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
         
-        if (sessionError) {
-            console.error('Session error:', sessionError);
+        if (userError || !user) {
+            console.error('Auth error:', userError);
             redirect('/');
         }
 
-        if (!session) {
-            redirect('/');
-        }
-
-        // Fetch courses separately first for debugging
+        // Fetch courses
         const { data: courses, error: coursesError } = await supabase
             .from('Courses')
             .select('*')
-            .eq('user_id', session.user.id);
+            .eq('user_id', user.id);
 
         if (coursesError) {
             console.error('Error fetching courses:', coursesError);
@@ -42,7 +39,7 @@ export default async function DashboardPage() {
         const { data: memberGroups, error: memberError } = await supabase
             .from('GroupMembers')
             .select('group_id')
-            .eq('user_id', session.user.id);
+            .eq('user_id', user.id);
 
         if (memberError) {
             console.error('Error fetching group memberships:', memberError);
@@ -70,7 +67,7 @@ export default async function DashboardPage() {
                     created_at
                 )
             `)
-            .eq('email', session.user.email)
+            .eq('email', user.email)
             .eq('accepted', false);
 
         if (invitationsError) {
@@ -90,7 +87,7 @@ export default async function DashboardPage() {
             supabase
                 .from('Exams')
                 .select('*')
-                .eq('uid', session.user.id),
+                .eq('uid', user.id),
             supabase
                 .from('Assignments')
                 .select('*'),
@@ -99,7 +96,7 @@ export default async function DashboardPage() {
                 .select('*')
         ]);
 
-        console.log('User:', session.user);
+        console.log('User:', user);
         console.log('Study Groups:', studyGroups);
         console.log('Pending Invitations:', pendingInvitations);
 
@@ -122,14 +119,14 @@ export default async function DashboardPage() {
             courses: courses || [],
             topics: topics || [],
             exams: exams || [],
-            user: session.user,
+            user: user,
             assignments: assignments || [],
             lessons: lessons || [],
             studyGroups: formattedStudyGroups,
             pendingInvitations: formattedPendingInvitations
         };
 
-        return <DashboardClient initialData={initialData} fallback={<div>Loading...</div>} />;
+        return <DashboardClient initialData={initialData} />;
     } catch (error) {
         console.error('Dashboard error:', error);
         redirect('/');
