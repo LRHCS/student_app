@@ -1303,7 +1303,7 @@ export default function StudyGroupClient({
                       />
                     </div>
                     <div className="flex flex-col">
-                      <span>{member.username}</span>
+                      <span>{member.display_name || member.username}</span>
                       <span className="text-sm text-blue-600">You</span>
                     </div>
                   </li>
@@ -1321,7 +1321,7 @@ export default function StudyGroupClient({
                         className="rounded-full"
                       />
                     </div>
-                    <span>{member.username}</span>
+                    <span>{member.display_name || member.username}</span>
                   </li>
                 ))}
             </ul>

@@ -54,25 +54,6 @@ export async function loadDashboardData() {
             console.error('Error fetching groups:', groupsError);
         }
 
-        // Get pending invitations with group details
-        const { data: pendingInvitations, error: invitationsError } = await supabase
-            .from('GroupInvitations')
-            .select(`
-                *,
-                group:Groups (
-                    id,
-                    title,
-                    description,
-                    created_at
-                )
-            `)
-            .eq('email', user.email)
-            .eq('accepted', false);
-
-        if (invitationsError) {
-            console.error('Error fetching invitations:', invitationsError);
-        }
-
         // Fetch other data
         const [
             { data: topics },
@@ -101,14 +82,26 @@ export async function loadDashboardData() {
             created_at: formatDate(group.created_at)
         })) || [];
 
-        const formattedPendingInvitations = pendingInvitations?.map(invitation => ({
-            ...invitation,
-            created_at: formatDate(invitation.created_at),
-            group: invitation.group ? {
-                ...invitation.group,
-                created_at: formatDate(invitation.group.created_at)
-            } : null
-        })) || [];
+        // Fetch pending invitations
+        // Fetch pending group invitations for the user
+        const { data: invitations, error: invitationsError } = await supabase
+            .from('GroupInvitations')
+            .select(`
+                *,
+                group:group_id (
+                    id,
+                    title,
+                    description,
+                    created_at
+                ),
+                inviter:invited_by (
+                    display_name,
+                    avatar
+                )
+            `)
+            .eq('email', user.email)
+            .is('accepted', null);  // Only get pending invitations
+        if (invitationsError) throw invitationsError;
 
         return {
             courses: courses || [],
@@ -118,7 +111,7 @@ export async function loadDashboardData() {
             assignments: assignments || [],
             lessons: lessons || [],
             studyGroups: formattedStudyGroups,
-            pendingInvitations: formattedPendingInvitations
+            pendingInvitations: invitations || []
         };
     } catch (error) {
         console.error('Dashboard error:', error);

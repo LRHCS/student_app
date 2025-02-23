@@ -43,8 +43,12 @@ export default function DashboardClient({ initialData, calendarData }) {
     const [newGroup, setNewGroup] = useState({ title: "", description: "" });
     const [error, setError] = useState(null);
     const [currentAvatar, setCurrentAvatar] = useState(
-        user?.user_metadata?.avatar_url || "https://ubiajgdnxauaennfuxur.supabase.co/storage/v1/object/public/avatar//default_avatar.jpg"
+        user?.avatar || user?.user_metadata?.avatar_url || "https://ubiajgdnxauaennfuxur.supabase.co/storage/v1/object/public/avatar//default_avatar.jpg"
     );
+    const [showInvitations, setShowInvitations] = useState(false);
+    const [isInvitingMembers, setIsInvitingMembers] = useState(false);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [selectedGroupForInvite, setSelectedGroupForInvite] = useState(null);
 
     const router = useRouter();
 
@@ -61,7 +65,7 @@ export default function DashboardClient({ initialData, calendarData }) {
             if (!user) return;
 
             const DEFAULT_AVATAR = "https://ubiajgdnxauaennfuxur.supabase.co/storage/v1/object/public/avatar//default_avatar.jpg";
-            const avatarUrl = user.user_metadata?.avatar_url || DEFAULT_AVATAR;
+            const avatarUrl = user.avatar || user.user_metadata?.avatar_url || DEFAULT_AVATAR;
             
             // Update local avatar state immediately
             setCurrentAvatar(avatarUrl);
@@ -227,6 +231,46 @@ export default function DashboardClient({ initialData, calendarData }) {
         return { assignments: unfinishedAssignments, lessons: unfinishedLessons };
     };
 
+    const handleInvitationResponse = async (invitationId, groupId, accept) => {
+        if (accept) {
+            // Add user to group members
+            const { error: memberError } = await supabase
+                .from('GroupMembers')
+                .insert([{
+                    group_id: groupId,
+                    user_id: user.id,
+                    username: user.email,
+                    avatar_url: user.user_metadata?.avatar_url || null,
+                }]);
+            
+            if (memberError) {
+                console.error('Error accepting invitation:', memberError);
+                alert('Failed to join group');
+                return;
+            }
+        }
+
+        // Update invitation status
+        const { error: updateError } = await supabase
+            .from('GroupInvitations')
+            .update({ accepted: accept })
+            .eq('id', invitationId);
+
+        if (updateError) {
+            console.error('Error updating invitation:', updateError);
+            return;
+        }
+
+        // Update local state
+        setPendingInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+        if (accept) {
+            const acceptedGroup = pendingInvitations.find(inv => inv.id === invitationId)?.group;
+            if (acceptedGroup) {
+                setStudyGroups(prev => [...prev, acceptedGroup]);
+            }
+        }
+    };
+
     const handleSubmitGroup = async (e) => {
         e.preventDefault();
         if (!newGroup.title.trim()) return alert("Group title is required.");
@@ -246,14 +290,13 @@ export default function DashboardClient({ initialData, calendarData }) {
 
             if (groupError) throw groupError;
 
-            // Then add the creator as a member
+            // Then add the creator as a member - removed avatar field since it's not in schema
             const { error: memberError } = await supabase
                 .from('GroupMembers')
                 .insert([{
                     group_id: groupData.id,
                     user_id: user.id,
                     username: user.email,
-                    avatar: user.user_metadata?.avatar_url || null,
                     joined_at: new Date().toISOString()
                 }]);
 
@@ -265,46 +308,69 @@ export default function DashboardClient({ initialData, calendarData }) {
 
         } catch (error) {
             console.error("Error creating group:", error);
-            alert("Failed to create group");
+            alert(`Failed to create group: ${error.message}`);
         }
     };
 
-    const handleInvitationResponse = async (invitationId, groupId, accept) => {
+    
+
+    const handleSendInvitation = async (e) => {
+        e.preventDefault();
+        
+        if (!inviteEmail || !selectedGroupForInvite) {
+            alert('Please provide an email address');
+            return;
+        }
+
         try {
-            if (accept) {
-                // Add user to group members
-                const { error: memberError } = await supabase
-                    .from('GroupMembers')
-                    .insert([{
-                        group_id: groupId,
-                        user_id: user.id,
-                        username: user.email,
-                        avatar: user.user_metadata?.avatar_url || null,
-                        joined_at: new Date().toISOString()
-                    }]);
-                
-                if (memberError) throw memberError;
+            // Check if user is already a member
+            const { data: existingMember, error: memberError } = await supabase
+                .from('GroupMembers')
+                .select('*')
+                .eq('group_id', selectedGroupForInvite.id)
+                .eq('username', inviteEmail)
+                .single();
+
+            if (existingMember) {
+                alert('This user is already a member of the group');
+                return;
             }
 
-            // Update invitation status
-            const { error: updateError } = await supabase
+            // Check if invitation already exists
+            const { data: existingInvite, error: inviteError } = await supabase
                 .from('GroupInvitations')
-                .update({ accepted: accept })
-                .eq('id', invitationId);
+                .select('*')
+                .eq('group_id', selectedGroupForInvite.id)
+                .eq('email', inviteEmail)
+                .is('accepted', null)
+                .single();
 
-            if (updateError) throw updateError;
-
-            // Update local state
-            setPendingInvitations(prev => prev.filter(inv => inv.id !== invitationId));
-            if (accept) {
-                const acceptedGroup = pendingInvitations.find(inv => inv.id === invitationId)?.group;
-                if (acceptedGroup) {
-                    setStudyGroups(prev => [...prev, acceptedGroup]);
-                }
+            if (existingInvite) {
+                alert('An invitation has already been sent to this email');
+                return;
             }
+
+            // Send new invitation
+            const { error: sendError } = await supabase
+                .from('GroupInvitations')
+                .insert([{
+                    group_id: selectedGroupForInvite.id,
+                    email: inviteEmail,
+                    invited_by: user.id,
+                    created_at: new Date().toISOString(),
+                    accepted: null
+                }]);
+
+            if (sendError) throw sendError;
+
+            alert('Invitation sent successfully!');
+            setInviteEmail('');
+            setIsInvitingMembers(false);
+            setSelectedGroupForInvite(null);
+
         } catch (error) {
-            console.error('Error handling invitation:', error);
-            alert('Failed to process invitation');
+            console.error('Error sending invitation:', error);
+            alert('Failed to send invitation');
         }
     };
 
@@ -367,13 +433,23 @@ export default function DashboardClient({ initialData, calendarData }) {
                 )}
             </div>
 
-            {/* Study Groups Section */}
+            {/* Study Groups Section with Invitations Button */}
             <div className="flex justify-between items-center mt-8">
                 <h2 className="text-4xl font-bold m-4 mb-6">Study Groups</h2>
-                <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">
-                        {`${studyGroups.length} groups joined`}
-                    </span>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => setShowInvitations(!showInvitations)}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        <span className="text-sm">
+                            Invitations
+                            {pendingInvitations.length > 0 && (
+                                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs">
+                                    {pendingInvitations.length}
+                                </span>
+                            )}
+                        </span>
+                    </button>
                     <button
                         onClick={() => setIsCreatingGroup(true)}
                         className="p-2 flex items-center justify-center"
@@ -384,62 +460,112 @@ export default function DashboardClient({ initialData, calendarData }) {
                 </div>
             </div>
 
-            {/* Study Groups List */}
-            <div className="flex flex-wrap gap-4">
-                {studyGroups.length > 0 ? (
-                    studyGroups.map((group) => (
-                        <Card key={group.id} className="mb-2 flex flex-col p-4 min-w-[200px]">
-                            <Link href={`/study-group/${group.id}`} className="text-xl font-bold mb-2">
-                                {group.title}
-                            </Link>
-                            <p className="text-gray-600 text-sm">{group.description}</p>
-                            <p className="text-xs text-gray-400 mt-2">
-                                Joined {formatDate(group.created_at)}
+            {/* Study Groups Grid */}
+            <div className="relative">
+                <div className="flex flex-wrap gap-4">
+                    {studyGroups.length > 0 ? (
+                        studyGroups.map((group) => (
+                            <Card key={group.id} className="mb-2 flex flex-col p-4 w-full md:w-[calc(33.33%-1rem)] transition-all hover:shadow-lg">
+                                <Link href={`/study-group/${group.id}`} className="text-xl font-bold mb-2 hover:text-blue-600 transition-colors">
+                                    {group.title}
+                                </Link>
+                                <p className="text-gray-600 text-sm">{group.description}</p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                    Joined {formatDate(group.created_at)}
+                                </p>
+
+                            </Card>
+                        ))
+                    ) : (
+                        <Card className="mb-2 flex flex-col justify-center items-center p-6 w-full border-2 border-dashed border-gray-300 bg-gray-50">
+                            <h3 className="text-lg font-medium text-gray-700">
+                                You haven't joined any study group yet
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                Join a study group to collaborate with peers.
                             </p>
                         </Card>
-                    ))
-                ) : (
-                    <Card className="mb-2 flex flex-col justify-center items-center p-6 min-w-[250px] border-2 border-dashed border-gray-300 bg-gray-50">
-                        <h3 className="text-lg font-medium text-gray-700">
-                            You haven't joined any study group yet
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                            Join a study group to collaborate with peers.
-                        </p>
-                    </Card>
+                    )}
+                </div>
+
+                {/* Invitations Popup */}
+                {showInvitations && (
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                        <div className="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
+                            <div className="flex justify-between items-center p-4 border-b">
+                                <h3 className="text-lg font-semibold text-gray-700">
+                                    Pending Invitations
+                                    {pendingInvitations.length > 0 && 
+                                        <span className="ml-2 text-sm text-gray-500">({pendingInvitations.length})</span>
+                                    }
+                                </h3>
+                                <button 
+                                    onClick={() => setShowInvitations(false)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="p-4 max-h-[70vh] overflow-y-auto flex flex-col gap-4 justify-center items-center">
+                                <div className="">
+                                    {pendingInvitations.length > 0 ? (
+                                        pendingInvitations.map((invitation) => (
+                                            <Card 
+                                                key={invitation.id} 
+                                                className="bg-white transition-all hover:shadow-md w-full"
+                                            >
+                                                <div className="p-4">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h4 className="font-medium text-gray-900">
+                                                            {invitation.group?.title || 'Unnamed Group'}
+                                                        </h4>
+                                                        <span className="text-xs text-gray-500">
+                                                            {formatDate(invitation.created_at)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        {invitation.inviter?.avatar && (
+                                                            <img 
+                                                                src={invitation.inviter.avatar} 
+                                                                alt="Inviter avatar"
+                                                                className="w-6 h-6 rounded-full"
+                                                            />
+                                                        )}
+                                                        <p className="text-sm text-gray-600">
+                                                            Invited by: {invitation.inviter?.display_name || 'Unknown user'}
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-sm text-gray-500 mb-3">
+                                                        {invitation.group?.description}
+                                                    </p>
+                                                    <div className="flex gap-2 mt-3">
+                                                        <button
+                                                            onClick={() => handleInvitationResponse(invitation.id, invitation.group_id, true)}
+                                                            className="flex-1 px-3 py-1.5 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600 transition-colors"
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleInvitationResponse(invitation.id, invitation.group_id, false)}
+                                                            className="flex-1 px-3 py-1.5 border border-gray-300 text-sm rounded-md hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            Decline
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </Card>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-6 text-gray-500">
+                                            <p>No pending invitations</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
-
-            {/* Pending Invitations */}
-            {pendingInvitations.length > 0 && (
-                <div className="mt-8">
-                    <h3 className="text-2xl font-bold mb-4">Pending Invitations</h3>
-                    <div className="flex flex-wrap gap-4">
-                        {pendingInvitations.map((invitation) => (
-                            <Card key={invitation.id} className="mb-2 p-4 min-w-[250px]">
-                                <h4 className="font-semibold">{invitation.group.title}</h4>
-                                <p className="text-sm text-gray-600 mt-1">{invitation.group.description}</p>
-                                <div className="flex gap-2 mt-4">
-                                    <button 
-                                        onClick={() => handleAcceptInvitation(invitation.id)}
-                                        className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                                        title="Accept Invitation"
-                                    >
-                                        Accept
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDeclineInvitation(invitation.id)}
-                                        className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
-                                        title="Decline Invitation"
-                                    >
-                                        Decline
-                                    </button>
-                                </div>
-                            </Card>
-                        ))}
-                    </div>
-                </div>
-            )}
 
             <ProfileLink avatarUrl={currentAvatar} />
             <div className="calendar-container">
@@ -541,39 +667,46 @@ export default function DashboardClient({ initialData, calendarData }) {
                 </div>
             )}
 
-            {/* Pending Invitations Section */}
-            {pendingInvitations.length > 0 && (
-                <div className="mb-8 bg-blue-50 p-4 rounded-lg">
-                    <h3 className="text-xl font-semibold mb-4">Pending Group Invitations</h3>
-                    <div className="space-y-4">
-                        {pendingInvitations.map((invitation) => (
-                            <div key={invitation.id} 
-                                className="flex items-center justify-between bg-white p-4 rounded-md shadow-sm">
-                                <div>
-                                    <h4 className="font-medium">{invitation.group.title}</h4>
-                                    <p className="text-sm text-gray-600">{invitation.group.description}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleInvitationResponse(invitation.id, invitation.group_id, true)}
-                                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-                                        title="Accept Invitation"
-                                    >
-                                        Accept
-                                    </button>
-                                    <button
-                                        onClick={() => handleInvitationResponse(invitation.id, invitation.group_id, false)}
-                                        className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-                                        title="Decline Invitation"
-                                    >
-                                        Decline
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+            {isInvitingMembers && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                    <form onSubmit={handleSendInvitation} className="bg-white p-6 rounded-lg shadow-lg w-96">
+                        <h3 className="text-xl font-semibold mb-4">
+                            Invite to {selectedGroupForInvite?.title}
+                        </h3>
+                        <label className="block mb-4">
+                            <span className="text-gray-700 mb-2 block">Email Address:</span>
+                            <input
+                                type="email"
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                required
+                                placeholder="Enter email address"
+                            />
+                        </label>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsInvitingMembers(false);
+                                    setInviteEmail('');
+                                    setSelectedGroupForInvite(null);
+                                }}
+                                className="px-4 py-2 border rounded-md hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                            >
+                                Send Invitation
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>
+        
     );
 } 

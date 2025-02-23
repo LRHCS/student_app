@@ -35,13 +35,14 @@ async function getGroupData(supabase, groupId) {
     const userIds = members.map(member => member.user_id);
     const { data: profiles } = await supabase
       .from("Profiles")
-      .select("id, avatar")
+      .select("id, avatar, display_name")
       .in("id", userIds);
 
     members = members.map(member => {
       const profile = profiles?.find(p => p.id === member.user_id);
       return { 
-        ...member, 
+        ...member,
+        display_name: profile?.display_name || member.username,
         avatar: profile?.avatar || "/default-avatar.png" 
       };
     });
