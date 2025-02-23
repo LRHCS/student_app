@@ -79,7 +79,6 @@ export async function loadDashboardData() {
         // Format dates in the data before passing to client
         const formattedStudyGroups = studyGroups?.map(group => ({
             ...group,
-            created_at: formatDate(group.created_at)
         })) || [];
 
         // Fetch pending invitations

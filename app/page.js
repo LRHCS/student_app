@@ -29,9 +29,8 @@ export default async function Page() {
                 id: session.user.id,
                 email: session.user.email,
                 created_at: new Date().toISOString(),
-                firstname: session.user.user_metadata?.first_name || '',
-                lastname: session.user.user_metadata?.last_name || '',
-                avatar: session.user.user_metadata?.avatar_url || ''
+                display_name: session.user.user_metadata?.display_name || '',
+                avatar: session.user.user_metadata?.avatar || ''
             });
 
         if (insertError) {

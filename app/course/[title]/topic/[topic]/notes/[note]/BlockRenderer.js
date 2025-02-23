@@ -317,7 +317,7 @@ const BlockRenderer = ({
             if (user) {
                 let { data, error, status } = await supabase
                     .from("Profiles")
-                    .select(`id, firstname, lastname, avatar`)
+                    .select(`id, display_name, avatar`)
                     .eq("id", user.id)
                     .single();
 

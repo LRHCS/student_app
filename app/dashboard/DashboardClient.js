@@ -470,9 +470,7 @@ export default function DashboardClient({ initialData, calendarData }) {
                                     {group.title}
                                 </Link>
                                 <p className="text-gray-600 text-sm">{group.description}</p>
-                                <p className="text-xs text-gray-400 mt-2">
-                                    Joined {formatDate(group.created_at)}
-                                </p>
+
 
                             </Card>
                         ))
