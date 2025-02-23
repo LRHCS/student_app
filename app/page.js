@@ -1,6 +1,5 @@
 // Logic determain whether show Login or Dashboard
 import Login from './components/Login/Login'; 
-import DashboardPage from './dashboard/page';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';

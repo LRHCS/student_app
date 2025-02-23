@@ -1,49 +1,53 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { enable, disable } from 'darkreader'
+
+// Removed static import of darkreader to prevent SSR errors
+// import { enable, disable } from 'darkreader'
 
 const DarkModeContext = createContext()
 
-export function DarkModeProvider({ children }) {
-  const [isDarkMode, setIsDarkMode] = useState(false)
+export const DarkModeProvider = ({ children }) => {
+  const [isDark, setIsDark] = useState(false)
 
   useEffect(() => {
     // Check initial preference
     const savedPreference = localStorage.getItem('darkMode')
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     
-    setIsDarkMode(savedPreference ? savedPreference === 'true' : prefersDark)
+    setIsDark(savedPreference ? savedPreference === 'true' : prefersDark)
   }, [])
 
   useEffect(() => {
-    if (isDarkMode) {
-      enable({
-        brightness: 100,
-        contrast: 100,
-        sepia: 0
-      })
-    } else {
-      disable()
+    // Ensure this code runs only on the client
+    if (typeof window !== 'undefined') {
+      if (isDark) {
+        import('darkreader').then((module) => {
+          // Configure dark reader settings as needed
+          module.enable({
+            brightness: 100,
+            contrast: 90,
+            sepia: 10,
+          })
+        }).catch((err) => console.error('Failed to load darkreader:', err))
+      } else {
+        import('darkreader').then((module) => {
+          module.disable()
+        }).catch((err) => console.error('Failed to load darkreader:', err))
+      }
     }
-    localStorage.setItem('darkMode', isDarkMode)
-  }, [isDarkMode])
+    localStorage.setItem('darkMode', isDark)
+  }, [isDark])
 
   const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev)
+    setIsDark(prev => !prev)
   }
 
   return (
-    <DarkModeContext.Provider value={{ isDarkMode, toggleDarkMode }}>
+    <DarkModeContext.Provider value={{ isDark, toggleDarkMode }}>
       {children}
     </DarkModeContext.Provider>
   )
 }
 
-export function useDarkMode() {
-  const context = useContext(DarkModeContext)
-  if (context === undefined) {
-    throw new Error('useDarkMode must be used within a DarkModeProvider')
-  }
-  return context
-} 
+export const useDarkMode = () => useContext(DarkModeContext) 

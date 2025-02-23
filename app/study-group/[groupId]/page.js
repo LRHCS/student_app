@@ -1,106 +1,129 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import StudyGroupClient from "./StudyGroupClient";
 import { redirect } from 'next/navigation';
-import StudyGroupClient from './StudyGroupClient';
 
-export default async function StudyGroupPage({ params }) {
-    const { groupId } = await params;
-    
-    // Wait for cookies to be available
-    const cookieStore = await cookies();
-    const supabase = createServerComponentClient({ cookies: () => cookieStore });
+export const dynamic = 'force-dynamic';
 
-    // Check authentication
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-        redirect('/');
-    }
+async function getGroupData(supabase, groupId) {
+  // First check authentication
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    redirect('/login');
+  }
 
-    try {
-        // Fetch group details
-        const { data: groupData, error: groupError } = await supabase
-        .from("Groups")
-        .select("*")
-        .eq("id", groupId)
-        .single();
+  // Fetch group details
+  const { data: group } = await supabase
+    .from("Groups")
+    .select("*")
+    .eq("id", groupId)
+    .single();
 
-        if (groupError) throw groupError;
+  if (!group) {
+    return { notFound: true };
+  }
 
-        // Fetch channels
-        const { data: channelsData, error: channelsError } = await supabase
-        .from("GroupChannels")
-        .select("*")
-        .eq("group_id", groupId);
+  // Fetch members with profiles
+  const { data: membersData } = await supabase
+    .from("GroupMembers")
+    .select("*")
+    .eq("group_id", groupId);
 
-        if (channelsError) throw channelsError;
+  let members = membersData || [];
+  if (members.length > 0) {
+    const userIds = members.map(member => member.user_id);
+    const { data: profiles } = await supabase
+      .from("Profiles")
+      .select("id, avatar")
+      .in("id", userIds);
 
-        // Fetch members
-        const { data: membersData, error: membersError } = await supabase
-        .from("GroupMembers")
-        .select("*")
-        .eq("group_id", groupId);
+    members = members.map(member => {
+      const profile = profiles?.find(p => p.id === member.user_id);
+      return { 
+        ...member, 
+        avatar: profile?.avatar || "/default-avatar.png" 
+      };
+    });
+  }
 
-        if (membersError) throw membersError;
+  // Fetch channels
+  const { data: channels } = await supabase
+    .from("GroupChannels")
+    .select("*")
+    .eq("group_id", groupId);
 
-        // Fetch profiles for group members
-        const userIds = membersData.map(member => member.user_id);
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("Profiles")
-          .select("id, avatar")
-          .in("id", userIds);
+  // Fetch folders
+  const { data: folders } = await supabase
+    .from("GroupFolders")
+    .select("*")
+    .eq("group_id", groupId)
+    .order("order");
 
-        if (profilesError) throw profilesError;
-
-        // Merge member data with profiles
-          const mergedMembers = membersData.map(member => {
-            const profile = profilesData.find(p => p.id === member.user_id);
-            return { ...member, avatar: profile?.avatar || "/default-avatar.png" };
-          });
-
-        // Get initial messages for first channel if exists
-        let initialMessages = [];
-        if (channelsData.length > 0) {
-            const { data: messagesData, error: messagesError } = await supabase
+  // Fetch initial messages for the first channel
+  let initialMessages = [];
+  if (channels && channels.length > 0) {
+    const { data: messages } = await supabase
       .from("GroupMessages")
-          .select("*")
-                .eq("channel_id", channelsData[0].id)
-                .order("created_at", { ascending: true });
+      .select("*")
+      .eq("channel_id", channels[0].id)
+      .order("created_at", { ascending: true });
+    initialMessages = messages || [];
+  }
 
-            if (messagesError) throw messagesError;
-            // Format dates before sending to client
-            initialMessages = messagesData.map(message => ({
-                ...message,
-                created_at: formatDate(message.created_at)
-            }));
-        }
+  // Fetch user's notes and exams
+  const { data: userNotes } = await supabase
+    .from('Lessons')
+    .select('id, title')
+    .eq('uid', session.user.id);
 
-        const initialData = {
-            group: groupData,
-            channels: channelsData,
-            members: mergedMembers,
-            initialMessages,
-            currentUser: session.user
-        };
+  const { data: userExams } = await supabase
+    .from('Exams')
+    .select('id, title')
+    .eq('uid', session.user.id);
 
-        return <StudyGroupClient initialData={initialData} />;
-
-    } catch (error) {
-        console.error('Error loading study group:', error);
-        redirect('/dashboard');
-    }
+  return {
+    group,
+    members,
+    channels: channels || [],
+    folders: folders || [],
+    currentUser: session.user,
+    initialMessages,
+    userNotes: userNotes || [],
+    userExams: userExams || []
+  };
 }
 
-// Add the same formatDate helper function
-const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
-  };
+export default async function StudyGroupPage({ params }) {
+  const supabase = createServerComponentClient({ cookies });
+  
+  // Get initial data
+  const { 
+    group, 
+    members, 
+    channels, 
+    folders, 
+    notFound, 
+    currentUser,
+    initialMessages,
+    userNotes,
+    userExams
+  } = await getGroupData(supabase, params.groupId);
+  
+  if (notFound) {
+    return <div className="p-4">Group not found</div>;
+  }
+
+  return (
+    <StudyGroupClient 
+      initialGroup={group}
+      initialMembers={members}
+      initialChannels={channels}
+      initialFolders={folders}
+      initialUser={currentUser}
+      initialMessages={initialMessages}
+      initialNotes={userNotes}
+      initialExams={userExams}
+    />
+  );
+} 

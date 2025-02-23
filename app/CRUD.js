@@ -9,7 +9,7 @@ export const fetchUserData = async () => {
     // Then fetch the user's data from your users table
     const { data: userData, error } = await supabase
       .from('Profiles')  // replace with your actual table name if different
-      .select('avatar, firstname, lastname')
+      .select('avatar, display_name')
       .eq('id', authData.user.id)
       .single();
 

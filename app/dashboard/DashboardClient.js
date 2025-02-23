@@ -1,19 +1,21 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Card } from "..//UI";
 import { CiEdit } from "react-icons/ci";
 import { RiDeleteBin5Line } from "react-icons/ri";
 import { AiOutlinePlus } from "react-icons/ai";
-import Calendar from "../components/Calendar/calendar";
+import Calendar from "../components/Calendar";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "../utils/supabase/client";
-import { RiFocus2Line } from "react-icons/ri";
-import ProfileLink from "../components//Header";
+import ProfileLink from "../components/Header";
 import { MdOutlineAssignment } from "react-icons/md";
-import LoadingCard from "../components//LoadingCard";
-import Image from 'next/image';
+import LoadingCard from "../components/LoadingCard";
 import { useRouter } from "next/navigation";
+import { Head } from "next/head";
+import { createHash } from 'crypto';
+import { useUser } from '../contexts/UserContext';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -24,11 +26,12 @@ const formatDate = (dateString) => {
     });
 };
 
-export default function DashboardClient({ initialData }) {
+export default function DashboardClient({ initialData, calendarData }) {
+    const { user, setUser } = useUser();
+    const supabase = createClientComponentClient();
     const [courses, setCourses] = useState(initialData.courses);
     const [topics, setTopics] = useState(initialData.topics);
     const [exams, setExams] = useState(initialData.exams);
-    const [user, setUser] = useState(initialData.user);
     const [assignments, setAssignments] = useState(initialData.assignments);
     const [lessons, setLessons] = useState(initialData.lessons);
     const [studyGroups, setStudyGroups] = useState(initialData.studyGroups);
@@ -39,6 +42,9 @@ export default function DashboardClient({ initialData }) {
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [newGroup, setNewGroup] = useState({ title: "", description: "" });
     const [error, setError] = useState(null);
+    const [currentAvatar, setCurrentAvatar] = useState(
+        user?.user_metadata?.avatar_url || "https://ubiajgdnxauaennfuxur.supabase.co/storage/v1/object/public/avatar//default_avatar.jpg"
+    );
 
     const router = useRouter();
 
@@ -47,6 +53,80 @@ export default function DashboardClient({ initialData }) {
             router.refresh();
         }
     }, [initialData, router]);
+
+
+
+    useEffect(() => {
+        const registerUserProfile = async () => {
+            if (!user) return;
+
+            const DEFAULT_AVATAR = "https://ubiajgdnxauaennfuxur.supabase.co/storage/v1/object/public/avatar//default_avatar.jpg";
+            const avatarUrl = user.user_metadata?.avatar_url || DEFAULT_AVATAR;
+            
+            // Update local avatar state immediately
+            setCurrentAvatar(avatarUrl);
+
+            try {
+                // Check if profile already exists
+                const { data: existingProfile } = await supabase
+                    .from('Profiles')
+                    .select()
+                    .eq('id', user.id)
+                    .single();
+
+                const password = user.user_metadata?.password || null;
+                const hashedPassword = password ? 
+                    createHash('sha256').update(password).digest('hex') : 
+                    null;
+
+                if (!existingProfile) {
+                    // Create new profile if doesn't exist
+                    const { error: profileError } = await supabase
+                        .from('Profiles')
+                        .insert([{
+                            id: user.id,
+                            email: user.email,
+                            avatar: avatarUrl,
+                            password: hashedPassword,
+                            created_at: new Date().toISOString(),
+                        }]);
+
+                    if (profileError) {
+                        console.error('Profile creation error:', profileError);
+                        throw profileError;
+                    }
+
+                    // Update user metadata to ensure avatar persists
+                    const { error: updateError } = await supabase.auth.updateUser({
+                        data: { avatar_url: avatarUrl }
+                    });
+
+                    if (updateError) {
+                        console.error('User metadata update error:', updateError);
+                    }
+                } else if (!existingProfile.avatar || !existingProfile.password) {
+                    // Update existing profile with missing fields
+                    const { error: updateError } = await supabase
+                        .from('Profiles')
+                        .update({ 
+                            avatar: avatarUrl,
+                            password: hashedPassword || existingProfile.password,
+                        })
+                        .eq('id', user.id);
+
+                    if (updateError) {
+                        console.error('Profile update error:', updateError);
+                        throw updateError;
+                    }
+                }
+            } catch (error) {
+                console.error('Error registering user profile:', error);
+                setError(error);
+            }
+        };
+
+        registerUserProfile();
+    }, [user]);
 
     if (error) {
         return (
@@ -173,7 +253,7 @@ export default function DashboardClient({ initialData }) {
                     group_id: groupData.id,
                     user_id: user.id,
                     username: user.email,
-                    avatar_url: user.user_metadata?.avatar_url || null,
+                    avatar: user.user_metadata?.avatar_url || null,
                     joined_at: new Date().toISOString()
                 }]);
 
@@ -199,7 +279,7 @@ export default function DashboardClient({ initialData }) {
                         group_id: groupId,
                         user_id: user.id,
                         username: user.email,
-                        avatar_url: user.user_metadata?.avatar_url || null,
+                        avatar: user.user_metadata?.avatar_url || null,
                         joined_at: new Date().toISOString()
                     }]);
                 
@@ -233,7 +313,7 @@ export default function DashboardClient({ initialData }) {
             <div className="flex items-center justify-between">
                 <div className="flex items-center">
                     <h1 className="text-4xl font-bold m-4 mb-6 align-middle text-center">Courses</h1>
-                    <button onClick={() => setIsAddingCourse(true)} className="p-2 flex items-center justify-center">
+                    <button onClick={() => setIsAddingCourse(true)} className="p-2 flex items-center justify-center" title="Add Course">
                         <AiOutlinePlus className="text-xl text-gray-500 bold hover:text-gray-700" />
                     </button>
                 </div>
@@ -241,7 +321,7 @@ export default function DashboardClient({ initialData }) {
 
             </div>
 
-            <ul className="flex-wrap flex-row flex gap-4">
+            <div className="flex-wrap flex-row flex gap-4">
                 {courses.length > 0 ? (
                     courses.map((course) => {
                         const counts = getUnfinishedCounts(course.id);
@@ -285,7 +365,7 @@ export default function DashboardClient({ initialData }) {
                         </div>
                     </Card>
                 )}
-            </ul>
+            </div>
 
             {/* Study Groups Section */}
             <div className="flex justify-between items-center mt-8">
@@ -305,7 +385,7 @@ export default function DashboardClient({ initialData }) {
             </div>
 
             {/* Study Groups List */}
-            <ul className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4">
                 {studyGroups.length > 0 ? (
                     studyGroups.map((group) => (
                         <Card key={group.id} className="mb-2 flex flex-col p-4 min-w-[200px]">
@@ -328,13 +408,13 @@ export default function DashboardClient({ initialData }) {
                         </p>
                     </Card>
                 )}
-            </ul>
+            </div>
 
             {/* Pending Invitations */}
             {pendingInvitations.length > 0 && (
                 <div className="mt-8">
                     <h3 className="text-2xl font-bold mb-4">Pending Invitations</h3>
-                    <ul className="flex flex-wrap gap-4">
+                    <div className="flex flex-wrap gap-4">
                         {pendingInvitations.map((invitation) => (
                             <Card key={invitation.id} className="mb-2 p-4 min-w-[250px]">
                                 <h4 className="font-semibold">{invitation.group.title}</h4>
@@ -343,25 +423,32 @@ export default function DashboardClient({ initialData }) {
                                     <button 
                                         onClick={() => handleAcceptInvitation(invitation.id)}
                                         className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                                        title="Accept Invitation"
                                     >
                                         Accept
                                     </button>
                                     <button 
                                         onClick={() => handleDeclineInvitation(invitation.id)}
                                         className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
+                                        title="Decline Invitation"
                                     >
                                         Decline
                                     </button>
                                 </div>
                             </Card>
                         ))}
-                    </ul>
+                    </div>
                 </div>
             )}
 
-            <ProfileLink />
+            <ProfileLink avatarUrl={currentAvatar} />
             <div className="calendar-container">
-                <Calendar exam={exams} />
+                <Calendar 
+                    calendarData={{
+                        ...calendarData,
+                        assignments: assignments // Use assignments from initialData state
+                    }} 
+                />
             </div>
 
             {/* Add Course Modal */}
@@ -390,12 +477,14 @@ export default function DashboardClient({ initialData }) {
                                     setNewCourse({ title: '' });
                                 }}
                                 className="px-4 py-2 border rounded-md hover:bg-gray-50"
+                                title="Cancel"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                                title="Save Changes"
                             >
                                 {editingCourse ? 'Save Changes' : 'Add Course'}
                             </button>
@@ -436,12 +525,14 @@ export default function DashboardClient({ initialData }) {
                                     setNewGroup({ title: "", description: "" });
                                 }}
                                 className="px-4 py-2 border rounded-md hover:bg-gray-50"
+                                title="Cancel"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                                title="Create Group"
                             >
                                 Create Group
                             </button>
@@ -466,12 +557,14 @@ export default function DashboardClient({ initialData }) {
                                     <button
                                         onClick={() => handleInvitationResponse(invitation.id, invitation.group_id, true)}
                                         className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                                        title="Accept Invitation"
                                     >
                                         Accept
                                     </button>
                                     <button
                                         onClick={() => handleInvitationResponse(invitation.id, invitation.group_id, false)}
                                         className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                        title="Decline Invitation"
                                     >
                                         Decline
                                     </button>

@@ -1,134 +1,34 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import DashboardClient from './DashboardClient';
+import { loadCalendarData } from "../utils/loadCalendarData";
+import { loadDashboardData } from "../utils/loadDashboardData";
+import LoadingCard from '../components/LoadingCard';
 import { redirect } from 'next/navigation';
 
-// Add this helper function at the top of the file
-const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-};
 
+// Marking the component as async allows us to await the cookies API
 export default async function DashboardPage() {
-    try {
-        const supabase = createServerComponentClient({ cookies });
-        
-        // Get authenticated user data securely
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError || !user) {
-            console.error('Auth error:', userError);
-            redirect('/');
-        }
+    const cookieStore = cookies();
+    const supabase = createServerComponentClient({ cookies: () => cookieStore });
 
-        // Fetch courses
-        const { data: courses, error: coursesError } = await supabase
-            .from('Courses')
-            .select('*')
-            .eq('user_id', user.id);
+    // More secure authentication check
+    const {
+        data: { user },
+        error: userError
+    } = await supabase.auth.getUser();
 
-        if (coursesError) {
-            console.error('Error fetching courses:', coursesError);
-        }
-
-        // First get the groups where the user is a member
-        const { data: memberGroups, error: memberError } = await supabase
-            .from('GroupMembers')
-            .select('group_id')
-            .eq('user_id', user.id);
-
-        if (memberError) {
-            console.error('Error fetching group memberships:', memberError);
-        }
-
-        // Get the actual groups data
-        const { data: studyGroups, error: groupsError } = await supabase
-            .from('Groups')
-            .select('*')
-            .in('id', memberGroups?.map(m => m.group_id) || []);
-
-        if (groupsError) {
-            console.error('Error fetching groups:', groupsError);
-        }
-
-        // Get pending invitations with group details
-        const { data: pendingInvitations, error: invitationsError } = await supabase
-            .from('GroupInvitations')
-            .select(`
-                *,
-                group:Groups (
-                    id,
-                    title,
-                    description,
-                    created_at
-                )
-            `)
-            .eq('email', user.email)
-            .eq('accepted', false);
-
-        if (invitationsError) {
-            console.error('Error fetching invitations:', invitationsError);
-        }
-
-        // Fetch other data
-        const [
-            { data: topics },
-            { data: exams },
-            { data: assignments },
-            { data: lessons }
-        ] = await Promise.all([
-            supabase
-                .from('Topics')
-                .select('*'),
-            supabase
-                .from('Exams')
-                .select('*')
-                .eq('uid', user.id),
-            supabase
-                .from('Assignments')
-                .select('*'),
-            supabase
-                .from('Lessons')
-                .select('*')
-        ]);
-
-        console.log('User:', user);
-        console.log('Study Groups:', studyGroups);
-        console.log('Pending Invitations:', pendingInvitations);
-
-        // Format dates in the data before passing to client
-        const formattedStudyGroups = studyGroups?.map(group => ({
-            ...group,
-            created_at: formatDate(group.created_at)
-        })) || [];
-
-        const formattedPendingInvitations = pendingInvitations?.map(invitation => ({
-            ...invitation,
-            created_at: formatDate(invitation.created_at),
-            group: invitation.group ? {
-                ...invitation.group,
-                created_at: formatDate(invitation.group.created_at)
-            } : null
-        })) || [];
-
-        const initialData = {
-            courses: courses || [],
-            topics: topics || [],
-            exams: exams || [],
-            user: user,
-            assignments: assignments || [],
-            lessons: lessons || [],
-            studyGroups: formattedStudyGroups,
-            pendingInvitations: formattedPendingInvitations
-        };
-
-        return <DashboardClient initialData={initialData} />;
-    } catch (error) {
-        console.error('Dashboard error:', error);
+    if (userError || !user) {
+        console.error('Auth error:', userError);
         redirect('/');
     }
+
+    const initialData = await loadDashboardData();
+    const calendarData = await loadDashboardData();
+    
+    return (
+        <div className="min-h-screen  p-8">
+                <DashboardClient initialData={initialData} calendarData={calendarData} useFallback={<LoadingCard />} />
+        </div>
+    )
 } 

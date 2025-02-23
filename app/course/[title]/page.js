@@ -15,13 +15,18 @@ const formatDate = (dateString) => {
 
 export default async function CoursePage(props) {
     const params = await props.params;
-    const supabase = createServerComponentClient({ cookies });
+    const cookieStore = cookies();
+    const supabase = createServerComponentClient({ cookies: () => cookieStore });
     const title = decodeURIComponent(params.title);
 
-    // Check authentication
-    const { data: { session } } = await supabase.auth.getSession();
+    // More secure authentication check
+    const {
+        data: { user },
+        error: userError
+    } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (userError || !user) {
+        console.error('Auth error:', userError);
         redirect('/');
     }
 

@@ -331,7 +331,7 @@ export default function CourseClient({ initialData }) {
                                         <div className="ml-4">
                                             <ul className="space-y-2">
                                                 {examLessons[exam.id].map((lesson) => (
-                                                    <li key={lesson.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                                    <li key={lesson.id} className="flex items-center justify-between border border-gray-300 p-2 rounded-lg">
                                                         <Link 
                                                             href={`/course/${encodeURIComponent(initialData.title)}/topic/${encodeURIComponent(topics.find(t => t.id === lesson.topic_id)?.title || '')}/notes/${lesson.id}`}
                                                             className="text-sm hover:underline"

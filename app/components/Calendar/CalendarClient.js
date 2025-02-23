@@ -1,15 +1,13 @@
-"use client";
-import React, { useState, useEffect } from "react";
+"use client"
+
+import { useState, useEffect } from "react";
 import { supabase } from "../../utils/supabase/client";
 import { IoMdAdd } from "react-icons/io";
 import { GrFormPreviousLink, GrFormNextLink } from "react-icons/gr";
-import Link from "next/link";
 import { PiExam } from "react-icons/pi";
-import { MdOutlineAssignment, MdDelete, MdEdit } from "react-icons/md";
-import { redirect } from "next/navigation";
-import { loadCalendarData } from "../../utils/loadCalendarData";
-import LoadingCard from "../LoadingCard";
+import { MdOutlineAssignment } from "react-icons/md";
 import { AiOutlineEdit, AiOutlineDelete } from "react-icons/ai";
+import LoadingCard from "../LoadingCard";
 
 const getStatusText = (status) => {
     switch (status) {
@@ -40,7 +38,7 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
                         year: 'numeric'
                     })}
                 </h2>
-                <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                <button onClick={onClose} className="text-gray-500 hover:text-gray-700" title="Close">
                     ×
                 </button>
             </div>
@@ -69,6 +67,7 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
                                 onClick={() => updateAssignmentStatus(item.id, 0)}
                                 className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
                                     ${item.status === 0 ? 'bg-gray-200 border-gray-400' : 'border-gray-200'}`}
+                                title="Not Started"
                             >
                                 🔴
                             </button>
@@ -76,6 +75,7 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
                                 onClick={() => updateAssignmentStatus(item.id, 1)}
                                 className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
                                     ${item.status === 1 ? 'bg-yellow-200 border-yellow-400' : 'border-gray-200'}`}
+                                title="In Progress"
                             >
                                 🟡
                             </button>
@@ -83,7 +83,8 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
                                 onClick={() => updateAssignmentStatus(item.id, 2)}
                                 className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
                                     ${item.status === 2 ? 'bg-green-200 border-green-400' : 'border-gray-200'}`}
-                            >
+                                title="Completed"
+                            >   
                                 ✅
                             </button>
                         </div>
@@ -97,7 +98,6 @@ const DayContentModal = ({ date, exams, assignments, onClose, updateAssignmentSt
     </div>
 );
 
-// Add this new component for the status indicator
 const StatusIndicator = ({ status, isMobile }) => {
     const statusColors = {
         0: 'bg-gray-500',
@@ -118,18 +118,34 @@ const StatusIndicator = ({ status, isMobile }) => {
     );
 };
 
-const Calendar = () => {
+const Calendar = ({ exam, assignments: initialAssignments, courses: initialCourses, topics: initialTopics }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [exams, setExams] = useState([]);
-    const [assignments, setAssignments] = useState([]);
-    const [courses, setCourses] = useState([]);
-    const [topics, setTopics] = useState([]);
+    const [exams, setExams] = useState(exam || []);
+    const [assignments, setAssignments] = useState(initialAssignments || []);
+    const [courses, setCourses] = useState(initialCourses || []);
+    const [topics, setTopics] = useState(initialTopics || []);
     const [selectedCourse, setSelectedCourse] = useState("");
     const [selectedExam, setSelectedExam] = useState(null);
     const [selectedDate, setSelectedDate] = useState(null);
     // New states to track which exam/assignment is hovered:
     const [hoveredExamId, setHoveredExamId] = useState(null);
     const [hoveredAssignmentId, setHoveredAssignmentId] = useState(null);
+    
+    // NEW: State to store current user's id
+    const [userId, setUserId] = useState(null);
+
+    // NEW: Fetch the current user id on mount
+    useEffect(() => {
+        async function fetchUser() {
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (error) {
+                console.error("Error fetching user:", error);
+            } else if (user) {
+                setUserId(user.id);
+            }
+        }
+        fetchUser();
+    }, []);
 
     // For handling add modal for exam/assignment
     const [isChoosingModal, setIsChoosingModal] = useState(false);
@@ -161,6 +177,7 @@ const Calendar = () => {
                     .from("Exams")
                     .update({ date: dropDate })
                     .eq("id", id)
+                    .eq("uid", userId)
                     .select()
                     .single();
                 if (!error && updatedExam) {
@@ -173,6 +190,7 @@ const Calendar = () => {
                     .from("Assignments")
                     .update({ date: dropDate })
                     .eq("id", id)
+                    .eq("uid", userId)
                     .select()
                     .single();
                 if (!error && updatedAssignment) {
@@ -186,53 +204,24 @@ const Calendar = () => {
         }
     };
 
-    // Data loading using the extracted utility function
+    // Add this useEffect to mark past assignments as completed
     useEffect(() => {
-        const fetchData = async () => {
-            const data = await loadCalendarData();
-            const now = new Date();
-            now.setHours(0, 0, 0, 0); // Set to start of day
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
 
-            // Mark past exams but keep them in the list
-            const allExams = data.exams.map(exam => {
-                const examDate = new Date(exam.date);
-                examDate.setHours(0, 0, 0, 0);
-                return {
-                    ...exam,
-                    isPast: examDate < now // Today is not considered past
-                };
-            });
-
-            // For assignments, update status to completed if past due but keep them
-            const allAssignments = [];
-            for (const assignment of data.assignments) {
-                const assignmentDate = new Date(assignment.date);
-                assignmentDate.setHours(0, 0, 0, 0);
-                
-                if (assignmentDate < now) { // Today is not considered past
-                    if (assignment.status !== 2) {
-                        const { error } = await supabase
-                            .from("Assignments")
-                            .update({ status: 2 })
-                            .eq("id", assignment.id);
-                        if (error) {
-                            console.error("Error updating assignment status:", error);
-                        }
-                    }
-                    allAssignments.push({ ...assignment, status: 2, isPast: true });
-                } else {
-                    allAssignments.push({ ...assignment, isPast: false });
-                }
+        const updatedAssignments = assignments.map(assignment => {
+            const assignmentDate = new Date(assignment.date);
+            assignmentDate.setHours(0, 0, 0, 0);
+            
+            if (assignmentDate < now && assignment.status !== 2) {
+                return { ...assignment, status: 2, isPast: true };
             }
+            return { ...assignment, isPast: assignmentDate < now };
+        });
 
-            setExams(allExams);
-            setAssignments(allAssignments);
-            setCourses(data.courses);
-            setTopics(data.topics);
-            setLoading(false);
-        };
-        fetchData();
-    }, []);
+        setAssignments(updatedAssignments);
+        setLoading(false);
+    }, [initialAssignments]);
 
     // ----------------------------
     // Navigation Functions
@@ -297,9 +286,11 @@ const Calendar = () => {
                 .update({
                     title: newExam.title,
                     date: newExam.date,
-                    topicId: newExam.topicId
+                    topicId: newExam.topicId,
+                    uid: userId
                 })
                 .eq('id', newExam.id)
+                .eq('uid', userId)
                 .select()
                 .single();
 
@@ -315,7 +306,7 @@ const Calendar = () => {
             // Create new exam
             const { data, error } = await supabase
                 .from("Exams")
-                .insert([newExam])
+                .insert([{ ...newExam, uid: userId }])
                 .select()
                 .single();
 
@@ -338,9 +329,11 @@ const Calendar = () => {
                 .update({
                     title: newAssignment.title,
                     date: newAssignment.date,
-                    topicId: newAssignment.topicId
+                    topicId: newAssignment.topicId,
+                    uid: userId
                 })
                 .eq('id', newAssignment.id)
+                .eq('uid', userId)
                 .select()
                 .single();
 
@@ -356,10 +349,7 @@ const Calendar = () => {
             // Create new assignment
             const { data, error } = await supabase
                 .from("Assignments")
-                .insert([{
-                    ...newAssignment,
-                    status: 0
-                }])
+                .insert([{ ...newAssignment, status: 0, uid: userId }])
                 .select()
                 .single();
 
@@ -376,7 +366,8 @@ const Calendar = () => {
         const { error } = await supabase
             .from("Assignments")
             .update({ status: newStatus })
-            .eq("id", assignmentId);
+            .eq("id", assignmentId)
+            .eq("uid", userId);
 
         if (error) {
             console.error("Error updating assignment status:", error);
@@ -409,7 +400,8 @@ const Calendar = () => {
             const { error } = await supabase
                 .from("Exams")
                 .delete()
-                .eq("id", examId);
+                .eq("id", examId)
+                .eq("uid", userId);
 
             if (!error) {
                 setExams(exams.filter(exam => exam.id !== examId));
@@ -424,7 +416,8 @@ const Calendar = () => {
             const { error } = await supabase
                 .from("Assignments")
                 .delete()
-                .eq("id", assignmentId);
+                .eq("id", assignmentId)
+                .eq("uid", userId);
 
             if (!error) {
                 setAssignments(assignments.filter(assignment => assignment.id !== assignmentId));
@@ -470,6 +463,7 @@ const Calendar = () => {
                     <button 
                         className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors dark:text-gray-100" 
                         onClick={prevMonth}
+                        title="Previous Month"
                     >
                         <GrFormPreviousLink />
                     </button>
@@ -478,6 +472,7 @@ const Calendar = () => {
                     </h2>                
                     <button 
                         onClick={goToCurrentMonth}
+                        title="Today"
                         className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
                     >
                         Today
@@ -485,6 +480,7 @@ const Calendar = () => {
                     <button 
                         className="text-2xl hover:bg-gray-100 p-2 rounded-full transition-colors dark:text-gray-100" 
                         onClick={nextMonth}
+                        title="Next Month"
                     >
                         <GrFormNextLink />
                     </button>
@@ -529,6 +525,7 @@ const Calendar = () => {
                         >
                             {/* Add button */}
                             <button
+                                title="Add Event"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleAddClick(date);
@@ -655,10 +652,11 @@ const Calendar = () => {
                                                         value={item.status || 0}
                                                         onChange={(e) => updateAssignmentStatus(item.id, Number(e.target.value))}
                                                         className={`text-xs p-1 rounded ${getStatusText(item.status).color}`}
+                                                        title="Status"
                                                     >
-                                                        <option className="bg-gray-200" value={0}>Not Started</option>
-                                                        <option className="bg-yellow-200" value={1}>In Progress</option>
-                                                        <option className="bg-green-200" value={2}>Completed</option>
+                                                        <option className="bg-gray-200" value={0} title="Not Started">Not Started</option>
+                                                        <option className="bg-yellow-200" value={1} title="In Progress">In Progress</option>
+                                                        <option className="bg-green-200" value={2} title="Completed">Completed</option>
                                                     </select>
                                                 </div>
                                             </div>
@@ -688,14 +686,14 @@ const Calendar = () => {
                     <div className="bg-white p-4 rounded shadow-md w-80">
                         <h3 className="text-xl mb-4">What would you like to add?</h3>
                         <div className="flex justify-around">
-                            <button onClick={() => chooseItemType("exam")} className="px-4 py-2 border rounded">
+                            <button onClick={() => chooseItemType("exam")} className="px-4 py-2 border rounded" title="Add Exam">
                                 Exam
                             </button>
-                            <button onClick={() => chooseItemType("assignment")} className="px-4 py-2 border rounded">
+                            <button onClick={() => chooseItemType("assignment")} className="px-4 py-2 border rounded" title="Add Assignment">
                                 Assignment
                             </button>
                         </div>
-                        <button className="mt-4 text-sm text-gray-500" onClick={resetModals}>
+                        <button className="mt-4 text-sm text-gray-500" onClick={resetModals} title="Cancel">
                             Cancel
                         </button>
                     </div>
@@ -707,7 +705,7 @@ const Calendar = () => {
                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
                     <form className="bg-white p-4 rounded shadow-md w-96" onSubmit={handleSubmitExam}>
                         <h3 className="text-xl mb-4">Add Exam</h3>
-                        <label className="block mb-2">
+                        <label className="block mb-2" for="Exam Title">
                             Exam Title:
                             <input
                                 type="text"
@@ -717,7 +715,7 @@ const Calendar = () => {
                                 required
                             />
                         </label>
-                        <label className="block mb-2">
+                        <label className="block mb-2" for="Course">
                             Course:
                             <select
                                 value={selectedCourse}
@@ -730,10 +728,11 @@ const Calendar = () => {
                                 }}
                                 className="w-full p-2 border rounded"
                                 required
+                                for="course"
                             >
                                 <option value="">Select a course</option>
                                 {courses.map((course) => (
-                                    <option key={course.id} value={course.id}>
+                                    <option key={course.id} value={course.id} id={course.id}>
                                         {course.title}
                                     </option>
                                 ))}
@@ -757,10 +756,10 @@ const Calendar = () => {
                             </select>
                         </label>
                         <div className="flex justify-between mt-4">
-                            <button type="submit" className="px-4 py-2 border rounded">
+                            <button type="submit" className="px-4 py-2 border rounded" title="Add Exam">
                                 Add Exam
                             </button>
-                            <button type="button" onClick={resetModals} className="px-4 py-2 border rounded">
+                            <button type="button" onClick={resetModals} className="px-4 py-2 border rounded" title="Cancel">
                                 Cancel
                             </button>
                         </div>
@@ -822,10 +821,10 @@ const Calendar = () => {
                             </select>
                         </label>
                         <div className="flex justify-between mt-4">
-                            <button type="submit" className="px-4 py-2 border rounded">
+                            <button type="submit" className="px-4 py-2 border rounded" title="Add Assignment">
                                 Add Assignment
                             </button>
-                            <button type="button" onClick={resetModals} className="px-4 py-2 border rounded">
+                            <button type="button" onClick={resetModals} className="px-4 py-2 border rounded" title="Cancel">
                                 Cancel
                             </button>
                         </div>

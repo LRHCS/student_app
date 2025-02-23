@@ -2,12 +2,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AiOutlinePlus } from "react-icons/ai";
+import { AiOutlinePlus } from "../../../../config/icons";
 import { supabase } from "../../../../utils/supabase/client";
 import ProfileLink from "../../../../components/Header";
 import PracticeQuestionsList from "../../../../exam/[id]/PracticeQuestionsList";
-import LoadingCard from "../../../../components/LoadingCard";
-import { PiCardsFill } from "react-icons/pi";
+import { PiCardsFill } from "../../../../config/icons";
 
 export default function TopicClient({ initialData }) {
     const [lessons, setLessons] = useState(initialData.lessons);

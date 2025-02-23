@@ -2,64 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase/client";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useUser } from "../contexts/UserContext";
 
 export default function UserProfile() {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [username, setUsername] = useState("");
+    const router = useRouter();
+    const { user } = useUser()
+    const [loading, setLoading] = useState(false);
     const [avatar_url, setAvatarUrl] = useState("");
     const [uploading, setUploading] = useState(false);
     const [feedback, setFeedback] = useState("");
     const [feedbackLoading, setFeedbackLoading] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [newDisplayName, setNewDisplayName] = useState("");
+    const [isUpdating, setIsUpdating] = useState(false);
 
     useEffect(() => {
-        getProfile();
-    }, []);
-
-    async function getProfile() {
-        try {
-            setLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (user) {
-                setUser(user);
-                let { data, error, status } = await supabase
-                    .from("Profiles")
-                    .select(`firstname, lastname, avatar`)
-                    .eq("id", user.id)
-                    .single();
-
-                if (error && status !== 406) {
-                    throw error;
-                }
-
-                if (data) {
-                    setUsername(`${data.firstname} ${data.lastname}`);
-                    setAvatarUrl(data.avatar);
-                }
-            }
-        } catch (error) {
-            alert(error.message);
-        } finally {
-            setLoading(false);
+        if (user?.avatar) {
+            setAvatarUrl(user.avatar);
         }
-    }
+    }, [user]);
 
-    async function updateProfile() {
-        try {
-            setLoading(true);
-
-
-            if (error) throw error;
-            alert('Profile updated!');
-        } catch (error) {
-            alert(error.message);
-        } finally {
-            setLoading(false);
-        }
-    }
+    console.log(user);
 
     async function uploadAvatar(event) {
         try {
@@ -112,26 +77,34 @@ export default function UserProfile() {
             }
 
             // **Step 5: Update local state**
-            setAvatarUrl(urlData.publicUrl);
+            if (urlData?.publicUrl) {
+                setAvatarUrl(urlData.publicUrl);
+            }
+            location.reload();
+
 
         } catch (error) {
             alert(error.message);
         } finally {
             setUploading(false);
         }
+
     }
 
-    // <-- New Function for Feedback Submission
     async function submitFeedback(e) {
         e.preventDefault();
         try {
             setFeedbackLoading(true);
-            // Insert the feedback into the "feedback" table
             const { error } = await supabase
                 .from("feedback")
-                .insert({ feedback });
+                .insert({ 
+                    feedback,
+                    user_id: user.id,
+                    username: `${user.display_name}`
+                });
             if (error) throw error;
-            setFeedback(""); // Clear the textarea
+            setFeedback("");
+            alert("Thank you for your feedback!");
         } catch (error) {
             alert(error.message);
         } finally {
@@ -141,91 +114,187 @@ export default function UserProfile() {
 
     async function signOut() {
         await supabase.auth.signOut();
-        redirect("/");
+        router.push("/");
+    }
+
+    async function updateDisplayName(e) {
+        e.preventDefault();
+        try {
+            setIsUpdating(true);
+            
+            const { error } = await supabase
+                .from('Profiles')
+                .update({ display_name: newDisplayName })
+                .eq('id', user.id);
+
+            if (error) throw error;
+
+            // Update the user context or reload the page
+            location.reload();
+            router.push("/dashboard");
+        } catch (error) {
+            alert('Error updating display name: ' + error.message);
+        } finally {
+            setIsUpdating(false);
+        }
     }
 
     if (loading) {
-        return            ( <div className="flex items-center justify-center h-screen">
-
-        <div className="w-16 h-16 border-8 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-
-    </div>);
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
     }
 
     return (
-        <div>
+        <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <button
-                onClick={() => redirect("/")}
-                className="absolute top-4 left-4 w-fit bg-gray-800 text-white py-2 rounded-lg hover:bg-gray-900 transition"
+                onClick={() => router.push("/dashboard")}
+                className="fixed top-4 left-4 px-4 py-2 bg-white text-gray-700 rounded-lg shadow hover:bg-gray-50 transition flex items-center gap-2"
             >
-                Homepage
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+                Back
             </button>
-            <div className="flex justify-center items-center h-screen bg-gray-100">
-                <div className="bg-white shadow-lg rounded-2xl p-6 w-full max-w-sm">
-                    {/* Profile Image */}
+
+            <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+                <div className="p-8">
                     <div className="flex flex-col items-center">
-                        <div className="h-24 w-24 relative ">
+                        <div className="relative h-32 w-32 mb-4">
                             <Image
-                                src={avatar_url || '/default-avatar.png'}
-                                alt="avatar"
-                                fill={true}
-                                className="rounded-full shadow-md object-cover"
+                                src={user?.avatar || '/default-avatar.png'}
+                                alt="Profile"
+                                fill
+                                className="rounded-full object-cover border-4 border-white shadow-lg"
+                            />
+                            <label 
+                                className="absolute bottom-0 right-0 bg-blue-500 text-white p-2 rounded-full cursor-pointer shadow-lg hover:bg-blue-600 transition"
+                                htmlFor="avatar-upload"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                </svg>
+                            </label>
+                            <input
+                                id="avatar-upload"
+                                type="file"
+                                accept="image/*"
+                                onChange={uploadAvatar}
+                                disabled={uploading}
+                                className="hidden"
                             />
                         </div>
 
-                        <label className="button primary block mt-2" htmlFor="single">
-                            {uploading ? 'Uploading ...' : 'Upload Avatar'}
-                        </label>
-                        <input
-                            style={{
-                                visibility: 'hidden',
-                                position: 'absolute',
-                            }}
-                            type="file"
-                            id="single"
-                            accept="image/*"
-                            onChange={uploadAvatar}
-                            disabled={uploading}
-                        />
-                        <h2 className="mt-4 text-lg font-semibold text-gray-800">{username}</h2>
-                    </div>
-
-
-
-
-                    {/* Buttons */}
-                    <div className="mt-6 flex flex-col gap-2">
-                        <button
-                            onClick={signOut}
-                            className="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition"
-                        >
-                            Sign Out
-                        </button>
-                    </div>
-
-                    {/* Feedback Section */}
-                    <div className="mt-6">
-                        <form onSubmit={submitFeedback}>
-                            <h3 className="text-xl font-semibold text-gray-800">Feedback</h3>
-                            <textarea
-                                value={feedback}
-                                onChange={(e) => setFeedback(e.target.value)}
-                                placeholder="Your feedback..."
-                                rows="3"
-                                className="mt-2 w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:border-blue-500"
-                                required
-                            />
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-2xl font-bold text-gray-900">
+                                {user?.display_name}
+                            </h2>
                             <button
-                                type="submit"
-                                disabled={feedbackLoading}
-                                className="mt-2 w-full py-2 rounded-lg transition"
+                                onClick={() => {
+                                    setNewDisplayName(user?.display_name || '');
+                                    setIsEditModalOpen(true);
+                                }}
+                                className="p-1 text-gray-500 hover:text-gray-700 transition"
                             >
-                                {feedbackLoading ? "Submitting..." : "Submit Feedback"}
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                </svg>
                             </button>
-                        </form>
+                        </div>
+
+                        <p className="text-gray-500">{user?.email}</p>
+
+                        <div className="mt-8 w-full">
+                            <form onSubmit={submitFeedback} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Share Your Feedback
+                                    </label>
+                                    <textarea
+                                        value={feedback}
+                                        onChange={(e) => setFeedback(e.target.value)}
+                                        placeholder="We'd love to hear your thoughts..."
+                                        rows="4"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        required
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={feedbackLoading}
+                                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    {feedbackLoading ? "Submitting..." : "Submit Feedback"}
+                                </button>
+                            </form>
+
+                            <button
+                                onClick={signOut}
+                                className="mt-4 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                            >
+                                Sign Out
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Edit Display Name Modal */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                                Edit Display Name
+                            </h3>
+                            <button
+                                onClick={() => setIsEditModalOpen(false)}
+                                className="text-gray-400 hover:text-gray-500"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <form onSubmit={updateDisplayName} className="space-y-4">
+                            <div>
+                                <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">
+                                    Display Name
+                                </label>
+                                <input
+                                    type="text"
+                                    id="displayName"
+                                    value={newDisplayName}
+                                    onChange={(e) => setNewDisplayName(e.target.value)}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    placeholder="Enter new display name"
+                                    required
+                                />
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditModalOpen(false)}
+                                    className="flex-1 py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isUpdating}
+                                    className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    {isUpdating ? "Updating..." : "Save"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

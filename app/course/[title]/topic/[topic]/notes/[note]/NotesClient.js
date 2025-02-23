@@ -4,7 +4,6 @@ import Link from "next/link";
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
 import { supabase } from "../../../../../../utils/supabase/client";
-import { FaPlus, FaShare } from 'react-icons/fa';
 import { 
     MdTitle, 
     MdFormatListBulleted, 
