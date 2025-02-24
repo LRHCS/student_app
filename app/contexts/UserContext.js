@@ -68,21 +68,8 @@ export function UserProvider({ children }) {
             console.error('Error fetching profile:', profileError)
           }
 
-          // Update profile if avatar has changed
-          if (profile && session.user.user_metadata?.avatar_url !== profile.avatar) {
-            const { data: updatedProfile, error: updateError } = await supabase
-              .from('Profiles')
-              .update({ 
-                avatar: session.user.user_metadata?.avatar_url || profile.avatar 
-              })
-              .eq('id', session.user.id)
-              .select()
-              .single()
-
-            if (!updateError) {
-              profile = updatedProfile
-            }
-          }
+          // Removed automatic update of profile avatar using auth metadata
+          // to preserve the manually updated avatar from Supabase storage.
 
           // Set user with profile data if we have it
           if (profile) {

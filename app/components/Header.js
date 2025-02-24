@@ -48,7 +48,7 @@ const Header = () => {
                 <Image 
                   src={user.avatar} 
                   alt="Profile" 
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-full object-cover"
                   fill={true}
                 />
               </Link>

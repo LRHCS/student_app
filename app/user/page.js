@@ -19,9 +19,21 @@ export default function UserProfile() {
     const [isUpdating, setIsUpdating] = useState(false);
 
     useEffect(() => {
-        if (user?.avatar) {
-            setAvatarUrl(user.avatar);
+        async function fetchProfileAvatar() {
+            if (user?.id) {
+                const { data, error } = await supabase
+                    .from("Profiles")
+                    .select("avatar")
+                    .eq("id", user.id)
+                    .single();
+                if (error) {
+                    console.error("Error fetching profile avatar:", error);
+                } else {
+                    setAvatarUrl(data?.avatar || '/default-avatar.png');
+                }
+            }
         }
+        fetchProfileAvatar();
     }, [user]);
 
     console.log(user);
@@ -80,8 +92,7 @@ export default function UserProfile() {
             if (urlData?.publicUrl) {
                 setAvatarUrl(urlData.publicUrl);
             }
-            location.reload();
-
+            // Removed reload to use the updated avatar_url in state
 
         } catch (error) {
             alert(error.message);
@@ -164,7 +175,7 @@ export default function UserProfile() {
                     <div className="flex flex-col items-center">
                         <div className="relative h-32 w-32 mb-4">
                             <Image
-                                src={user?.avatar || '/default-avatar.png'}
+                                src={avatar_url || '/default-avatar.png'}
                                 alt="Profile"
                                 fill
                                 className="rounded-full object-cover border-4 border-white shadow-lg"

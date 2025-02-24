@@ -1,3 +1,20 @@
+// Added SEO meta tags using metadata export for Next.js
+export const metadata = {
+    title: 'Login | MyApp',
+    description: 'Sign in to access your personalized dashboard and manage your profile on MyApp.',
+    openGraph: {
+        title: 'Login | MyApp',
+        description: 'Sign in to access your personalized dashboard and manage your profile on MyApp.',
+        url: 'https://yourdomain.com', // Replace with your actual domain
+    },
+    twitter: {
+        card: 'summary_large_image',
+        site: '@your_twitter_handle', // Replace with your Twitter handle
+        title: 'Login | MyApp',
+        description: 'Sign in to access your personalized dashboard and manage your profile on MyApp.'
+    }
+};
+
 // Logic determain whether show Login or Dashboard
 import Login from './components/Login/Login'; 
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';

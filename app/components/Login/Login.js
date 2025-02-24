@@ -11,6 +11,7 @@ import { createHash } from 'crypto'
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [captchaToken, setCaptchaToken] = useState(null)
@@ -25,6 +26,11 @@ export default function Login() {
     
     if (!captchaToken) {
       setError('Please complete the captcha')
+      return
+    }
+
+    if (isSignUp && (!fullName || !fullName.trim())) {
+      setError('Please enter your full name')
       return
     }
 
@@ -63,7 +69,7 @@ export default function Login() {
               id: authResponse.data.user.id,
               email: authResponse.data.user.email,
               created_at: new Date().toISOString(),
-              display_name: email.split('@')[0],
+              display_name: fullName,
               password: hashedPassword,
               avatar: 'https://ubiajgdnxauaennfuxur.supabase.co/storage/v1/object/public/avatar//default_avatar.jpg'
             })
@@ -77,7 +83,7 @@ export default function Login() {
           // Set user in context
           setUser({
             ...authResponse.data.user,
-            display_name: email.split('@')[0],
+            display_name: fullName,
             avatar: 'https://ubiajgdnxauaennfuxur.supabase.co/storage/v1/object/public/avatar//default_avatar.jpg',
             password: hashedPassword
           })
@@ -196,6 +202,24 @@ export default function Login() {
 
         <form className="mt-8 space-y-6" onSubmit={handleEmailAuth}>
           <div className="rounded-md shadow-sm -space-y-px">
+            {isSignUp && (
+              <div>
+                <label htmlFor="full-name" className="sr-only">
+                  Full Name
+                </label>
+                <input
+                  id="full-name"
+                  name="full_name"
+                  type="text"
+                  autoComplete="name"
+                  required
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                  placeholder="Full Name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+            )}
             <div>
               <label htmlFor="email-address" className="sr-only">
                 Email address
@@ -206,7 +230,9 @@ export default function Login() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                className={`appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 ${
+                  isSignUp ? 'rounded-none' : 'rounded-t-md'
+                } focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -222,7 +248,7 @@ export default function Login() {
                 type="password"
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
