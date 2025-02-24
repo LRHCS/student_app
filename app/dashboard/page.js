@@ -19,7 +19,6 @@ export const metadata = {
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import DashboardClient from './DashboardClient';
-import { loadCalendarData } from "../utils/loadCalendarData";
 import { loadDashboardData } from "../utils/loadDashboardData";
 import LoadingCard from '../components/LoadingCard';
 import { redirect } from 'next/navigation';

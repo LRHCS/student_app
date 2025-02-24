@@ -1,11 +1,16 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { supabase } from "../utils/supabase/client";
 import { MdKeyboardArrowLeft, MdKeyboardArrowRight } from "react-icons/md";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function FlashcardsPage() {
+import dynamic from 'next/dynamic'
+ 
+
+ 
+// Separate the main content into a new component
+function FlashcardContent() {
   const [flashcards, setFlashcards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -90,82 +95,94 @@ export default function FlashcardsPage() {
   };
 
   return (
-  <div>
-    <div className="top-4 left-4 absolute">
-          <Link href="../../.." className="hover:underline font-bold text-white ">
+    <div>
+      <div className="top-4 left-4 absolute">
+        <Link href="../../.." className="hover:underline font-bold text-white">
           Dashboard
-    </Link><span className="text-white"> / </span>
-    </div>
+        </Link>
+        <span className="text-white"> / </span>
+      </div>
 
-    <div className="min-h-screen bg-gray-600  p-4 flex flex-col items-center justify-center">
-      
-      
-      {loading ? (
-        <div className="text-gray-600">Loading flashcards...</div>
-      ) : flashcards.length === 0 ? (
-        <div className="text-white">
-          No flashcards available. Add practice questions in your lessons.
-        </div>
-      ) : (
-        <div className="w-full ">
-          {/* Flashcard container with 3D perspective */}
-          <div className="mb-6 flex justify-center items-center">
-            <div
-              onClick={() => setShowAnswer((prev) => !prev)}
-              className="relative w-[30vw] h-[50vh] cursor-pointer transition-transform duration-700"
-              style={{ 
-                transformStyle: "preserve-3d",
-                transform: showAnswer ? "rotateY(180deg)" : "rotateY(0deg)"
-              }}
-            >
-              {/* Front Side (Question) */}
+      <div className="min-h-screen bg-gray-600 p-4 flex flex-col items-center justify-center">
+        {loading ? (
+          <div className="text-gray-600">Loading flashcards...</div>
+        ) : flashcards.length === 0 ? (
+          <div className="text-white">
+            No flashcards available. Add practice questions in your lessons.
+          </div>
+        ) : (
+          <div className="w-full ">
+            {/* Flashcard container with 3D perspective */}
+            <div className="mb-6 flex justify-center items-center">
               <div
-                className="absolute inset-0 flex items-center justify-center bg-white rounded-lg shadow-xl p-6"
+                onClick={() => setShowAnswer((prev) => !prev)}
+                className="relative w-[30vw] h-[50vh] cursor-pointer transition-transform duration-700"
                 style={{ 
-                  backfaceVisibility: "hidden",
-                  WebkitBackfaceVisibility: "hidden"
+                  transformStyle: "preserve-3d",
+                  transform: showAnswer ? "rotateY(180deg)" : "rotateY(0deg)"
                 }}
               >
-                <span className="text-2xl font-semibold p-4">
-                  {flashcards[currentIndex].question}
-                </span>
-              </div>
-              {/* Back Side (Answer) */}
-              <div
-                className="absolute inset-0 flex items-center justify-center bg-white rounded-lg shadow-xl p-6"
-                style={{ 
-                  backfaceVisibility: "hidden",
-                  WebkitBackfaceVisibility: "hidden",
-                  transform: "rotateY(180deg)"
-                }}
-              >
-                <span className="text-2xl font-semibold p-4">
-                  {flashcards[currentIndex].answer}
-                </span>
+                {/* Front Side (Question) */}
+                <div
+                  className="absolute inset-0 flex items-center justify-center bg-white rounded-lg shadow-xl p-6"
+                  style={{ 
+                    backfaceVisibility: "hidden",
+                    WebkitBackfaceVisibility: "hidden"
+                  }}
+                >
+                  <span className="text-2xl font-semibold p-4">
+                    {flashcards[currentIndex].question}
+                  </span>
+                </div>
+                {/* Back Side (Answer) */}
+                <div
+                  className="absolute inset-0 flex items-center justify-center bg-white rounded-lg shadow-xl p-6"
+                  style={{ 
+                    backfaceVisibility: "hidden",
+                    WebkitBackfaceVisibility: "hidden",
+                    transform: "rotateY(180deg)"
+                  }}
+                >
+                  <span className="text-2xl font-semibold p-4">
+                    {flashcards[currentIndex].answer}
+                  </span>
+                </div>
               </div>
             </div>
+            {/* Navigation Buttons */}
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={handlePrev}
+                className="text-blue-500 hover:text-blue-700 flex items-center"
+              >
+                <MdKeyboardArrowLeft size={24} />
+              </button>
+              <button
+                onClick={handleNext}
+                className="text-blue-500 hover:text-blue-700 flex items-center"
+              >
+                <MdKeyboardArrowRight size={24} />
+              </button>
+            </div>
+            <div className="mt-4 text-sm text-gray-500 text-center">
+              {currentIndex + 1} / {flashcards.length}
+            </div>
           </div>
-          {/* Navigation Buttons */}
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={handlePrev}
-              className="text-blue-500 hover:text-blue-700 flex items-center"
-            >
-              <MdKeyboardArrowLeft size={24} />
-            </button>
-            <button
-              onClick={handleNext}
-              className="text-blue-500 hover:text-blue-700 flex items-center"
-            >
-              <MdKeyboardArrowRight size={24} />
-            </button>
-          </div>
-          <div className="mt-4 text-sm text-gray-500 text-center">
-            {currentIndex + 1} / {flashcards.length}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
-    </div>
+  );
+}
+
+// Main component wrapped with Suspense
+export default function FlashcardsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-600 flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    }>
+      <FlashcardContent />
+    </Suspense>
   );
 } 
